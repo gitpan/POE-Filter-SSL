@@ -5,7 +5,7 @@ use POE::Filter;
 use Net::SSLeay;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.01';
+$VERSION = '0.02';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -253,20 +253,22 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =head1 DESCRIPTION
 
-This module allows to make a SSL TCP Server via a filter for POE::Wheel::ReadWrite.
+This module allows to make a SSL TCP server via a filter for POE::Wheel::ReadWrite. SSL TCP client support will be added soon.
 
 The SSL Filter can be switched during runtime, for example if you want to first make plain text and then STARTTLS. You also can the POE::Filter::SSL with an other filter, for example POE::Filter::HTTPD (see advance example on this site), and have a HTTPS server.
 
 Further features are
-  - Full Nonblocking mode; no use of Sockets at all
-  - client certificate verification
-  - Send custom messages if client certificate is missing or invalid
-  - CRL check.
-  - Retrieve client certificate details (subect name, issuer name, certificate serial)
+
+    * Full non-blocking processing
+    * No use of Sockets at all
+    * Client certificate verification
+    * Send custom messages if client certificate is missing or invalid
+    * CRL check
+    * Retrieve client certificate details (subject name, issuer name, certificate serial)
 
 =head1 SYNOPSIS
 
@@ -293,7 +295,7 @@ Further features are
                         debug  => 1
                      }),
                      InputEvent => 'socket_input',
-                     ErrorEvent => 'socket_death',
+                     ErrorEvent => '_stop'
                   );
                },
                socket_input => sub {
@@ -321,8 +323,7 @@ Further features are
 Returns a new POE::Filter::SSL object. It accepts as a hash the following options:
 
    debug
-      Get debug messages during ssl handshake. Especially usefull
-      for Server_SSLify_NonBlock_ClientCertVerifyAgainstCRL.
+      Get debug messages during ssl.
 
    crt
       The certificate for the server, normale file.crt.
@@ -338,31 +339,15 @@ Returns a new POE::Filter::SSL object. It accepts as a hash the following option
       The ca certificate, which is used to verificated the client
       certificates against a CA. Normaly a file like ca.crt.
 
-=cut
-
-sub blabla {
-}
-
 =head2 handshakeDone()
 
 Returns true if the handshake is done and all data for hanshake has been written out.
-
-=cut
-
-sub handshakeDone {
-   xxx ?
-}
 
 =head2 clientCertNotOnCRL(file)
 
 Opens a CRL file, and verify if the serial of the client certificate
 is not contained in the CRL file. No file caching is done, each call opens
 the file again.
-
-=cut
-
-sub blabla {
-}
 
 =head2 clientCertIds()
 
@@ -375,31 +360,16 @@ serial of the certificate in binary form. You have to use split and use
    my ($certid) = ($heap->{sslfilter}->clientCertIds());
    $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".ord($certid->[2]) : 'No client certificate';
 
-=cut
-
-sub blabla {
-}
-
 =head2 clientCertValid()
 
 Returns true if there is a client certificate that is valid. It
 also tests against the crl, if you have set the "cacrl"
 option on new().
 
-=cut
-
-sub blabla {
-}
-
 =head2 clientCertExists()
 
 Returns true if there is a client certificate, that maybe
 is untrusted.
-
-=cut
-
-sub blabla {
-}
 
 =head2 hexdump($string)
 
@@ -407,7 +377,7 @@ Returns string data in hex format.
 
 For example:
 
-  perl -e 'use POE::Component::SSLify::NonBlock; print POE::Component::SSLify::NonBlock::hexdump("test")."\n";'
+  perl -e 'use POE::Filter::SSL; print POE::Filter::SSL::hexdump("test")."\n";'
   74:65:73:74
 
 =head2 Private functions
@@ -456,7 +426,7 @@ Internal used to access OpenSSL.
                BindPort     => 443,
                Reuse        => 'yes',
                SuccessEvent => 'socket_birth',
-               FailureEvent => 'socket_death',
+               FailureEvent => '_stop',
             );
          },
          _stop => sub {
@@ -566,7 +536,9 @@ L<http://search.cpan.org/dist/POE-Filter-SSL>
 
 =back
 
-=head1 ACKNOWLEDGEMENTS
+=head1 Commercial support
+
+Commercial support can be gained at <ssl at priv.de>
 
 =head1 COPYRIGHT & LICENSE
 

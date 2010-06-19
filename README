@@ -1,40 +1,26 @@
-POE-Filter-SSL
-
-COPYRIGHT AND LICENCE
-
-Copyright (C) 2010 Markus Mueller
-
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
-
 NAME
     POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 VERSION
-    Version 0.01
+    Version 0.02
 
 DESCRIPTION
-    This module allows to make a SSL TCP Server via a filter for
-    POE::Wheel::ReadWrite.
+    This module allows to make a SSL TCP server via a filter for
+    POE::Wheel::ReadWrite. SSL TCP client support will be added soon.
 
     The SSL Filter can be switched during runtime, for example if you want
     to first make plain text and then STARTTLS. You also can the
     POE::Filter::SSL with an other filter, for example POE::Filter::HTTPD
     (see advance example on this site), and have a HTTPS server.
 
-    Further features are - Full Nonblocking mode; no use of Sockets at all -
-    client certificate verification - Send custom messages if client
-    certificate is missing or invalid - CRL check. - Retrieve client
-    certificate details (subect name, issuer name, certificate serial)
+    Further features are
 
-INSTALLATION
-
-To install this module, run the following commands:
-
-	perl Makefile.PL
-	make
-	make test
-	make install
+        * Full non-blocking processing
+        * No use of Sockets at all
+        * Client certificate verification
+        * Send custom messages if client certificate is missing or invalid
+        * CRL check
+        * Retrieve client certificate details (subject name, issuer name, certificate serial)
 
 SYNOPSIS
        ...
@@ -60,7 +46,7 @@ SYNOPSIS
                             debug  => 1
                          }),
                          InputEvent => 'socket_input',
-                         ErrorEvent => 'socket_death',
+                         ErrorEvent => '_stop'
                       );
                    },
                    socket_input => sub {
@@ -87,8 +73,7 @@ FUNCTIONS
     following options:
 
        debug
-          Get debug messages during ssl handshake. Especially usefull
-          for Server_SSLify_NonBlock_ClientCertVerifyAgainstCRL.
+          Get debug messages during ssl.
 
        crt
           The certificate for the server, normale file.crt.
@@ -135,7 +120,7 @@ FUNCTIONS
 
     For example:
 
-      perl -e 'use POE::Component::SSLify::NonBlock; print POE::Component::SSLify::NonBlock::hexdump("test")."\n";'
+      perl -e 'use POE::Filter::SSL; print POE::Filter::SSL::hexdump("test")."\n";'
       74:65:73:74
 
   Private functions
@@ -168,7 +153,7 @@ ADVANCED EXAMPLE
                    BindPort     => 443,
                    Reuse        => 'yes',
                    SuccessEvent => 'socket_birth',
-                   FailureEvent => 'socket_death',
+                   FailureEvent => '_stop',
                 );
              },
              _stop => sub {
@@ -273,7 +258,9 @@ SUPPORT
 
         <http://search.cpan.org/dist/POE-Filter-SSL>
 
-ACKNOWLEDGEMENTS
+Commercial support
+    Commercial support can be gained at <ssl at priv.de>
+
 COPYRIGHT & LICENSE
     Copyright 2010 Markus Mueller, all rights reserved.
 

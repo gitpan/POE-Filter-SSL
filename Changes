@@ -1,5 +1,9 @@
 Revision history for POE-Filter-SSL
 
-0.01    Date/time
+0.01    19.06.2010
         First version, released on an unsuspecting world.
+
+0.02    19.06.2010
+	Fixed the incomplete package
+	Fixed the documentation
 
