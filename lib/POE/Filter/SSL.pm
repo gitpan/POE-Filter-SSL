@@ -5,7 +5,7 @@ use POE::Filter;
 use Net::SSLeay;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.06';
+$VERSION = '0.07';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -261,7 +261,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.04
+Version 0.07
 
 =head1 DESCRIPTION
 
