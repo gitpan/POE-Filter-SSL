@@ -12,3 +12,7 @@ Revision history for POE-Filter-SSL
         Improved the handling in server mode
         Client mode now included
 
+0.04    20.06.2010
+	Improved the documentation
+	Parameters now without reference
+

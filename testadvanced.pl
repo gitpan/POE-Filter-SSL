@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!perl
 
 use strict;
 use warnings;
@@ -36,7 +36,7 @@ POE::Session->create(
                   $heap->{socket_wheel} = POE::Wheel::ReadWrite->new(
                      Handle     => $connected_socket,
                      Driver     => POE::Driver::SysRW->new(),
-                     Filter     => POE::Filter::SSL->new({           ### HERE WE ARE!!!
+                     Filter     => POE::Filter::SSL->new(           ### HERE WE ARE!!!
                         crt    => 'server.crt',
                         key    => 'server.key',
                         cactr  => 'ca.crt',
@@ -44,7 +44,7 @@ POE::Session->create(
                         cacrl  => 'ca.crl',
                         debug  => 1,
                         clientcertrequest => 1
-                     }),
+                     ),
                      InputEvent => 'socket_input',
                      ErrorEvent => '_stop',
                   );
@@ -54,7 +54,7 @@ POE::Session->create(
                   my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
                   ### Uncomment the follwing lines if you want to use POE::Filter::HTTPD after the SSL handshake
                   #if (ref($heap->{socket_wheel}->get_input_filter()) eq "POE::Filter::SSL") {
-                  #   if ($heap->{sslfilter}->handshakeDone({ignorebuf => 1})) {
+                  #   if ($heap->{sslfilter}->handshakeDone(ignorebuf => 1)) {
                   #      $heap->{socket_wheel}->set_input_filter(POE::Filter::Stackable->new(
                   #         Filters => [
                   #            $heap->{sslfilter},
@@ -90,5 +90,5 @@ POE::Session->create(
       }
    }
 );
-
 $poe_kernel->run();
+
