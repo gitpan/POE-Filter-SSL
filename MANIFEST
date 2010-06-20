@@ -10,4 +10,6 @@ META.yml                                 Module meta-data (added by MakeMaker)
 SSL.xs
 typemap
 ppport.h
-
+testadvanced.pl
+testclient.pl
+testserver.pl

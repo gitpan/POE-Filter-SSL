@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                POE-Filter-SSL
-version:             0.02
+version:             0.03
 abstract:            The easiest and flexiblest way to SSL in POE!
 license:             ~
 author:              
@@ -11,6 +11,7 @@ requires:
     Net::SSLeay:                   1.32
     POE::Filter:                   0
     Test::More:                    0
+    XSLoader:                      0
 meta-spec:
     url:     http://module-build.sourceforge.net/META-spec-v1.3.html
     version: 1.3

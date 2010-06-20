@@ -7,3 +7,8 @@ Revision history for POE-Filter-SSL
 	Fixed the incomplete package
 	Fixed the documentation
 
+0.03    20.06.2010
+        Fixed the documentation
+        Improved the handling in server mode
+        Client mode now included
+

@@ -2,148 +2,284 @@ NAME
     POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 VERSION
-    Version 0.02
+    Version 0.03
 
 DESCRIPTION
-    This module allows to make a SSL TCP server via a filter for
-    POE::Wheel::ReadWrite. SSL TCP client support will be added soon.
+    This module allows to make a SSL TCP server or SSL TCP client via a
+    filter for POE::Wheel::ReadWrite.
 
     The SSL Filter can be switched during runtime, for example if you want
-    to first make plain text and then STARTTLS. You also can the
+    to first make plain text and then STARTTLS. You also can combine
     POE::Filter::SSL with an other filter, for example POE::Filter::HTTPD
-    (see advance example on this site), and have a HTTPS server.
+    (see *ADVANCED EXAMPLE* later on this site), and have a HTTPS server.
 
-    Further features are
+    POE::Filter::SSL is mainly based on Net::SSLeay, but has implemented
+    some Net::SSLeay missing calls by itself. Further there is an own BIO
+    implementation, which replaces the normal socket interface of OpenSSL.
 
-        * Full non-blocking processing
-        * No use of Sockets at all
-        * Client certificate verification
-        * Send custom messages if client certificate is missing or invalid
-        * CRL check
-        * Retrieve client certificate details (subject name, issuer name, certificate serial)
+    Included Features
+
+          Full non-blocking processing
+
+          No use of sockets at all
+
+          Server and client mode
+
+          Client certificate verification
+
+          Allows to accept connections with invalid or missing client
+          certificate and return custom error data
+
+          CRL check of client certificates
+
+          Retrieve client certificate details (subject name, issuer name,
+          certificate serial)
+
+    Upcomming Features
+
+          Direct cipher encryption without SSL or TLS protocol, for example
+          with static AES encryption
 
 SYNOPSIS
-       ...
-          $heap->{listener} = POE::Wheel::SocketFactory->new(
-             BindAddress  => '0.0.0.0',
-             BindPort     => 443,
-             SuccessEvent => 'socket_birth',
-             ...
-          },
-       ...
-       socket_birth => sub {
-             my ($socket) = @_[ARG0];
+    Examples
+      Basically is server and client the same; you have to add the option
+      *client* to *new* instead of the certification files.
+
+      Client
+             #!/usr/bin/perl
+
+             use strict;
+             use warnings;
+             use Socket;
+             use POE qw(
+                Wheel::SocketFactory
+                Wheel::ReadWrite
+                Driver::SysRW
+                Filter::SSL
+             );
+
+             my $host = "your.test.de";
+
              POE::Session->create(
                 inline_states => {
                    _start       => sub {
-                      my ($heap, $kernel, $connected_socket) = @_[HEAP, KERNEL, ARG0];
-                      $heap->{socket_wheel} = POE::Wheel::ReadWrite->new(
-                         Handle     => $connected_socket,
-                         Driver     => POE::Driver::SysRW->new(),
-                         Filter     => POE::Filter::SSL->new({
-                            crt    => 'server.crt',
-                            key    => 'server.key',
-                            debug  => 1
-                         }),
-                         InputEvent => 'socket_input',
-                         ErrorEvent => '_stop'
+                      my $heap = $_[HEAP];
+                      $heap->{listener} = POE::Wheel::SocketFactory->new(
+                         RemoteAddress => $host,
+                         RemotePort    => 443,
+                         SuccessEvent => 'socket_birth',
+                         FailureEvent => '_stop',
                       );
                    },
-                   socket_input => sub {
-                      my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
-                      # This following line is needed to do the SSL handshake!
-                      return $heap->{socket_wheel}->put() unless $buf;
-                      my $content = "HTTP/1.0 OK\r\nContent-type: text/html\r\n\r\n";
-                      $content .= "Welcome on the SSL encrypted TCP connection!<br>\r\n";
-                      $content .= localtime(time());
-                      $heap->{socket_wheel}->put($content);
-                      $kernel->delay(_stop => 1);
+                   _stop => sub {
+                      delete $_[HEAP]->{listener};
+                   },
+                   socket_birth => sub {
+                      my ($socket) = $_[ARG0];
+                      POE::Session->create(
+                         inline_states => {
+                            _start       => sub {
+                               my ($heap, $kernel, $connected_socket, $address, $port) = @_[HEAP, KERNEL, ARG0, ARG1, ARG2];
+                               $heap->{socket_wheel} = POE::Wheel::ReadWrite->new(
+                                  Handle     => $connected_socket,
+                                  Driver     => POE::Driver::SysRW->new(),
+                                  Filter     => POE::Filter::SSL->new({client => 1}),            ### HERE WE ARE!!!
+                                  InputEvent => 'socket_input',
+                                  ErrorEvent => '_stop',
+                               );
+                               $heap->{socket_wheel}->put("GET / HTTP/1.0\r\nHost: ".$host."\r\n\r\n")
+                            },
+                            socket_input => sub {
+                               my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
+                               # This following line is needed to do the SSL handshake!
+                               return $heap->{socket_wheel}->put()
+                                  unless $heap->{socket_wheel}->get_input_filter()->handshakeDone();
+                               print "Received: ".$buf."\n";
+                            },
+                            _stop => sub {
+                               delete $_[HEAP]->{socket_wheel};
+                            }
+                         },
+                         args => [$socket],
+                      );
+                   }
+                }
+             );
+             $poe_kernel->run();
+
+      Server
+             #!/usr/bin/perl
+
+             use strict;
+             use warnings;
+             use Socket;
+             use POE qw(
+                Wheel::SocketFactory
+                Wheel::ReadWrite
+                Driver::SysRW
+                Filter::SSL
+             );
+
+             POE::Session->create(
+                inline_states => {
+                   _start       => sub {
+                      my $heap = $_[HEAP];
+                      $heap->{listener} = POE::Wheel::SocketFactory->new(
+                         BindAddress  => '0.0.0.0',
+                         BindPort     => 443,
+                         Reuse        => 'yes',
+                         SuccessEvent => 'socket_birth',
+                         FailureEvent => '_stop',
+                      );
                    },
                    _stop => sub {
-                      delete $_[HEAP]->{socket_wheel} if ($_[HEAP]->{socket_wheel});
+                      delete $_[HEAP]->{listener};
+                   },
+                   socket_birth => sub {
+                      my ($socket) = $_[ARG0];
+                      POE::Session->create(
+                         inline_states => {
+                            _start       => sub {
+                               my ($heap, $kernel, $connected_socket, $address, $port) = @_[HEAP, KERNEL, ARG0, ARG1, ARG2];
+                               $heap->{socket_wheel} = POE::Wheel::ReadWrite->new(
+                                  Handle     => $connected_socket,
+                                  Driver     => POE::Driver::SysRW->new(),
+                                  Filter     => POE::Filter::SSL->new({crt => 'server.crt', key => 'server.key'}), ### HERE WE ARE!!!
+                                  InputEvent => 'socket_input',
+                                  ErrorEvent => '_stop',
+                               );
+                            },
+                            socket_input => sub {
+                               my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
+                               # This following line is needed to do the SSL handshake!
+                               return $heap->{socket_wheel}->put()
+                                  unless $heap->{socket_wheel}->get_input_filter()->handshakeDone();
+                               my $content = "HTTP/1.0 OK\r\nContent-type: text/html\r\n\r\n";
+                               $content .= "Welcome on the SSL encrypted TCP connection!<br>\r\n";
+                               $content .= localtime(time());
+                               $heap->{socket_wheel}->put($content);
+                               print "READ ".length($buf)." Bytes.\n";
+                               $kernel->delay(_stop => 1);
+                            },
+                            _stop => sub {
+                               delete $_[HEAP]->{socket_wheel};
+                            }
+                         },
+                         args => [$socket],
+                      );
                    }
-                },
-                args => [$socket],
+                }
              );
-       ...
+             $poe_kernel->run();
 
 FUNCTIONS
-  new({option => "value", option2 => "value2", ...})
-    Returns a new POE::Filter::SSL object. It accepts as a hash the
-    following options:
+    new({option => "value", option2 => "value2", ...})>
+        Returns a new POE::Filter::SSL object. It accepts as a hash with the
+        following options:
 
-       debug
+        debug
           Get debug messages during ssl.
 
-       crt
+        client
+          The filter is not a SSL server but a SSL client.
+
+        crt
           The certificate for the server, normale file.crt.
 
-       key
+        key
           The key of the certificate for the server, normale file.key.
 
-       clientcertrequest
-          The client gets requested for a client certificat during 
-          ssl handshake
+        clientcertrequest
+          The client gets requested for a client certificat during ssl
+          handshake
 
-       cacrt
+        cacrt
           The ca certificate, which is used to verificated the client
           certificates against a CA. Normaly a file like ca.crt.
 
-  handshakeDone()
-    Returns true if the handshake is done and all data for hanshake has been
-    written out.
+        cacrl
+          Configures a CRL against the client certificate is proofed by
+          clientCertValid().
 
-  clientCertNotOnCRL(file)
-    Opens a CRL file, and verify if the serial of the client certificate is
-    not contained in the CRL file. No file caching is done, each call opens
-    the file again.
+        cipher
+          Specify which ciphers are allowed.
 
-  clientCertIds()
-    Returns a array of every certificate found by OpenSSL. Each element is
-    again a array: First element is the value of X509_get_subject_name,
-    second is the value of X509_get_issuer_name and third element is the
-    serial of the certificate in binary form. You have to use split and use
-    "ord" to convert it to a readable form. Example:
+          Example:
 
-       my ($certid) = ($heap->{sslfilter}->clientCertIds());
-       $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".ord($certid->[2]) : 'No client certificate';
+             cipher => 'AES256-SHA'
 
-  clientCertValid()
-    Returns true if there is a client certificate that is valid. It also
-    tests against the crl, if you have set the "cacrl" option on new().
+    handshakeDone({option => 1})
+        Returns true if the handshake is done and all data for hanshake has
+        been written out. It accepts as a hash with the following options:
 
-  clientCertExists()
-    Returns true if there is a client certificate, that maybe is untrusted.
+        ignorebuf
+          Ignores buffer states, just returns if OpenSSL established the
+          connection. Needed if you want to exchange the Filter of
+          POE::Wheel::ReadWrite before the first data comes in.
 
-  hexdump($string)
-    Returns string data in hex format.
+    clientCertNotOnCRL($file)
+        Opens a CRL file, and verify if the serial of the client certificate
+        is not contained in the CRL file. No file caching is done, each call
+        opens the file again.
 
-    For example:
+    clientCertIds()
+        Returns a array of every certificate found by OpenSSL. Each element
+        is again a array: First element is the value of
+        X509_get_subject_name, second is the value of X509_get_issuer_name
+        and third element is the serial of the certificate in binary form.
+        You have to use split and use "ord" to convert it to a readable
+        form. Example:
 
-      perl -e 'use POE::Filter::SSL; print POE::Filter::SSL::hexdump("test")."\n";'
-      74:65:73:74
+           my ($certid) = ($heap->{sslfilter}->clientCertIds());
+           $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".ord($certid->[2]) : 'No client certificate';
 
-  Private functions
-   BIO_get_handler()
-   BIO_read()
-   BIO_write()
-   VERIFY()
-   X509_get_serialNumber()
-   clone()
-   doHandshake()
-   get()
-   get_one()
-   get_one_start()
-   get_pending()
-   hello()
-   put()
-   verify_serial_against_crl_file()
-    Internal used to access OpenSSL.
+    clientCertValid()
+        Returns true if there is a client certificate that is valid. It also
+        tests against the crl, if you have set the *cacrl* option on new().
+
+    clientCertExists()
+        Returns true if there is a client certificate, that maybe is
+        untrusted.
+
+    hexdump($string)
+        Returns string data in hex format.
+
+        For example:
+
+          perl -e 'use POE::Filter::SSL; print POE::Filter::SSL::hexdump("test")."\n";'
+          74:65:73:74
+
+  Internaly used to access OpenSSL
+    BIO_get_handler()
+    BIO_read()
+    BIO_write()
+    VERIFY()
+    X509_get_serialNumber()
+    clone()
+    doSSL()
+    get()
+    get_one()
+    get_one_start()
+    get_pending()
+    hello()
+    put()
+    verify_serial_against_crl_file()
 
 ADVANCED EXAMPLE
+       #!/usr/bin/perl
+
        use strict;
        use warnings;
-       use POE qw(Wheel::SocketFactory Wheel::ReadWrite Driver::SysRW Filter::SSL Filter::Stackable Filter::HTTPD);
+       use Socket;
+       use POE qw(
+          Wheel::SocketFactory
+          Wheel::ReadWrite
+          Driver::SysRW
+          Filter::SSL
+          Filter::Stackable
+          Filter::HTTPD
+       );
+
        POE::Session->create(
           inline_states => {
              _start       => sub {
@@ -157,9 +293,7 @@ ADVANCED EXAMPLE
                 );
              },
              _stop => sub {
-                my $heap = $_[HEAP];
-                delete $heap->{listener};
-                delete $heap->{session};
+                delete $_[HEAP]->{listener};
              },
              socket_birth => sub {
                 my ($socket) = $_[ARG0];
@@ -167,28 +301,28 @@ ADVANCED EXAMPLE
                    inline_states => {
                       _start       => sub {
                          my ($heap, $kernel, $connected_socket, $address, $port) = @_[HEAP, KERNEL, ARG0, ARG1, ARG2];
-                         $heap->{sslfilter} = POE::Filter::SSL->new({
-                            crt    => 'server.crt',
-                            key    => 'server.key',
-                            cactr  => 'ca.crt',
-                            cipher => 'AES256-SHA',
-                            cacrl  => 'ca.crl',
-                            debug  => 1,
-                            clientcertrequest => 1
-                         });
                          $heap->{socket_wheel} = POE::Wheel::ReadWrite->new(
                             Handle     => $connected_socket,
                             Driver     => POE::Driver::SysRW->new(),
-                            Filter     => $heap->{sslfilter},
+                            Filter     => POE::Filter::SSL->new({           ### HERE WE ARE!!!
+                               crt    => 'server.crt',
+                               key    => 'server.key',
+                               cactr  => 'ca.crt',
+                               cipher => 'AES256-SHA',
+                               cacrl  => 'ca.crl',
+                               debug  => 1,
+                               clientcertrequest => 1
+                            }),
                             InputEvent => 'socket_input',
-                            ErrorEvent => 'socket_death',
+                            ErrorEvent => '_stop',
                          );
+                         $heap->{sslfilter} = $heap->{socket_wheel}->get_input_filter();
                       },
                       socket_input => sub {
                          my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
-                         ### Uncomment if you want to use POE::Filter::HTTPD after the SSL handshake
-                         #if ($heap->{sslfilter}->handshakeDone()) {
-                         #   if (ref($heap->{socket_wheel}->get_input_filter()) ne "POE::Filter::Stackable") {
+                         ### Uncomment the follwing lines if you want to use POE::Filter::HTTPD after the SSL handshake
+                         #if (ref($heap->{socket_wheel}->get_input_filter()) eq "POE::Filter::SSL") {
+                         #   if ($heap->{sslfilter}->handshakeDone({ignorebuf => 1})) {
                          #      $heap->{socket_wheel}->set_input_filter(POE::Filter::Stackable->new(
                          #         Filters => [
                          #            $heap->{sslfilter},
@@ -198,7 +332,8 @@ ADVANCED EXAMPLE
                          #   }
                          #}
                          # This following line is needed to do the SSL handshake!
-                         return $heap->{socket_wheel}->put() unless $buf;
+                         return $heap->{socket_wheel}->put()
+                            unless $heap->{sslfilter}->handshakeDone();
                          my ($certid) = ($heap->{sslfilter}->clientCertIds());
                          $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".ord($certid->[2]) : 'No client certificate';
                          my $content = "HTTP/1.0 OK\r\nContent-type: text/html\r\n\r\n";
@@ -208,14 +343,14 @@ ADVANCED EXAMPLE
                             $content .= "None or <font color=red>invalid</font> client certificate:";
                          }
                          $content .= "<hr>".$certid."<hr>";
-                         $content .= "Your URL was: ".$buf->uri."<br>"
+                         $content .= "Your URL was: ".$buf->uri."<hr>" # This line will only appear if you uncomment the lines above!
                             if (ref($buf) eq "HTTP::Request");
                          $content .= localtime(time());
                          $heap->{socket_wheel}->put($content);
                          $kernel->delay(_stop => 1);
                       },
                       _stop => sub {
-                         delete $_[HEAP]->{socket_wheel} if ($_[HEAP]->{socket_wheel});
+                         delete $_[HEAP]->{socket_wheel};
                       }
                    },
                    args => [$socket],
@@ -229,8 +364,8 @@ AUTHOR
     Markus Mueller, "<privi at cpan.org>"
 
 BUGS
-    Please report any bugs or feature requests to "bug-poe-filter-ssl at
-    rt.cpan.org", or through the web interface at
+    Please report any bugs or feature requests to "bug-poe-filter-sslsupport
+    at rt.cpan.org", or through the web interface at
     <http://rt.cpan.org/NoAuth/ReportBug.html?Queue=POE-Filter-SSL>. I will
     be notified, and then you'll automatically be notified of progress on
     your bug as I make changes.
