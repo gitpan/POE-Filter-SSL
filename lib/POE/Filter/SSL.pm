@@ -5,7 +5,7 @@ use POE::Filter;
 use Net::SSLeay;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.08';
+$VERSION = '0.09';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -137,8 +137,9 @@ sub put {
    foreach my $data (@$chunks) {
       print "PUT: POE -> SSL -> NETWORK: ".$data."\r\n" if $debug;
       if ($self->{accepted}) {
-         die("PUT: Not all data given to SSL")
-            if (Net::SSLeay::write($self->{ssl}, $data) != length($data));
+         if ((my $sent = Net::SSLeay::write($self->{ssl}, $data)) != length($data)) {
+            die("PUT: Not all data given to SSL: ".$sent." != ".length($data));
+         }
          $self->doSSL();
       } else {
          push(@{$self->{sendbuf}}, $data) if ($data);
@@ -261,7 +262,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.08
+Version 0.09
 
 =head1 DESCRIPTION
 

@@ -29,3 +29,6 @@ Revision history for POE-Filter-SSL
 0.08	20.06.2010
 	Fixed the documentation
 
+0.09    20.06.2010
+        Fixed the support of write bigger than 32KBytes to 65Kbytes
+

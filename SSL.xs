@@ -8,7 +8,7 @@
 
 #define recvsize *((unsigned short *) bio->ptr)
 #define sendsize *((unsigned short *) (bio->ptr+2))
-#define BUFSIZE 32768
+#define BUFSIZE 65535
 
 static int pfs_bio_create( BIO *bio ) {
 #ifdef DEBUG
