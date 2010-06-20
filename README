@@ -2,7 +2,7 @@ NAME
     POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 VERSION
-    Version 0.07
+    Version 0.08
 
 DESCRIPTION
     This module allows to secure connections of POE::Wheel::ReadWrite with
@@ -124,7 +124,7 @@ FUNCTIONS
           handshake.
 
           WARNING: If the client provides an untrusted or no client
-          certficate, the connection is not failing! You have to ask
+          certficate, the connection is not failing. You have to ask
           clientCertValid() if the certicate is valid!
 
         cacrt
@@ -136,53 +136,58 @@ FUNCTIONS
           clientCertValid().
 
         cipher
-          Specify which ciphers are allowed for the asynchronous encrypted
-          transfer of the data over the ssl connection. For example:
+          Specify which ciphers are allowed for the synchronous encrypted
+          transfer of the data over the ssl connection. Example:
 
              cipher => 'AES256-SHA'
 
     handshakeDone(options)
-        Returns true if the handshake is done and all data for hanshake has
-        been written out. It accepts the following options:
+        Returns *true* if the handshake is done and all data for hanshake
+        has been written out. It accepts the following options:
 
         ignorebuf
-          Returns true if OpenSSL has established the connection, regardless
-          if all data has been written out. Needed if you want to exchange
-          the Filter of POE::Wheel::ReadWrite before the first data comes
-          in.
+          Returns *true* if OpenSSL has established the connection,
+          regardless if all data has been written out. This is needed if you
+          want to exchange the Filter of POE::Wheel::ReadWrite before the
+          first data comes in (see *ADVANCED EXAMPLE* later on this site).
 
     clientCertNotOnCRL($file)
         Verifies if the serial of the client certificate is not contained in
         the CRL $file. No file caching is done, each call opens the file
         again.
 
+        WARNING: If your CRL file is missing, can not be opened is empty or
+        has no blocked certificate at all in it, then every call will get
+        blocked!
+
     clientCertIds()
         Returns an array of every certificate found by OpenSSL. Each element
-        is again a array: First element is the value of
-        X509_get_subject_name, second is the value of X509_get_issuer_name
-        and third element is the serial of the certificate in binary form.
-        You have to use split and use "ord" to convert it to a readable
-        form. Example:
+        is again a array. The first element is the value of
+        *X509_get_subject_name*, second is the value of
+        *X509_get_issuer_name* and third element is the serial of the
+        certificate in binary form. You have to use *split()* and *ord()* to
+        convert it to a readable form. Example:
 
            my ($certid) = ($heap->{sslfilter}->clientCertIds());
            $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".hexdump($certid->[2]) : 'No client certificate';
 
     clientCertValid()
-        Returns true if there is a client certificate that is valid. It also
-        tests against the crl, if you have set the *cacrl* option on new().
+        Returns *true* if there is a client certificate that is valid. It
+        also tests against the crl, if you have the *cacrl* option set on
+        new().
 
     clientCertExists()
-        Returns true if there is a client certificate, that maybe is
+        Returns *true* if there is a client certificate, that maybe is
         untrusted.
 
-        WARNING: If the client provides an untrusted client certficate or
-        which is listed in CRL, this function maybe return true! You have to
-        ask clientCertValid() if the certicate is valid!
+        WARNING: If the client provides an untrusted client certficate a
+        client certicate that is listed in CRL, this function maybe return
+        *true*. You have to ask clientCertValid() if the certicate is valid!
 
     hexdump($string)
         Returns string data in hex format.
 
-        For example:
+        Example:
 
           perl -e 'use POE::Filter::SSL; print POE::Filter::SSL::hexdump("test")."\n";'
           74:65:73:74
@@ -205,10 +210,9 @@ FUNCTIONS
 
 ADVANCED EXAMPLE
     The following example implements a HTTPS server with client certificate
-    validation, which shows many details about the verified client
-    certificate. If you uncomment the POE::Filter::HTTPD block, it also
-    shows the URI property of the parsed HTTP::Response object from
-    POE::Filter::HTTPD.
+    validation, which shows details about the verified client certificate.
+    If you uncomment the POE::Filter::HTTPD block, it also shows the URI
+    property of the parsed HTTP::Response object from POE::Filter::HTTPD.
 
       #!perl
 

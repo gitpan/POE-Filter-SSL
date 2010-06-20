@@ -5,7 +5,7 @@ use POE::Filter;
 use Net::SSLeay;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.07';
+$VERSION = '0.08';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -261,7 +261,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.07
+Version 0.08
 
 =head1 DESCRIPTION
 
@@ -410,7 +410,7 @@ The key file (.key) of the certificate for the server.
 
 The server requests the client for a client certificat during ssl handshake.
 
-B<WARNING:> If the client provides an untrusted or no client certficate, the connection is B<not> failing! You have to ask clientCertValid() if the certicate is valid!
+B<WARNING:> If the client provides an untrusted or no client certficate, the connection is B<not> failing. You have to ask clientCertValid() if the certicate is valid!
 
 =item cacrt
 
@@ -422,7 +422,7 @@ Configures a CRL against the client certificate is proofed by clientCertValid().
 
 =item cipher
 
-Specify which ciphers are allowed for the asynchronous encrypted transfer of the data over the ssl connection. For example:
+Specify which ciphers are allowed for the synchronous encrypted transfer of the data over the ssl connection. Example:
 
    cipher => 'AES256-SHA'
 
@@ -430,13 +430,13 @@ Specify which ciphers are allowed for the asynchronous encrypted transfer of the
 
 =item handshakeDone(options)
 
-Returns true if the handshake is done and all data for hanshake has been written out. It accepts the following options:
+Returns I<true> if the handshake is done and all data for hanshake has been written out. It accepts the following options:
 
 =over 2
 
 =item ignorebuf
 
-Returns true if OpenSSL has established the connection, regardless if all data has been written out. Needed if you want to exchange the Filter of POE::Wheel::ReadWrite before the first data comes in.
+Returns I<true> if OpenSSL has established the connection, regardless if all data has been written out. This is needed if you want to exchange the Filter of POE::Wheel::ReadWrite before the first data comes in (see I<ADVANCED EXAMPLE> later on this site).
 
 =back
 
@@ -444,34 +444,35 @@ Returns true if OpenSSL has established the connection, regardless if all data h
 
 Verifies if the serial of the client certificate is not contained in the CRL $file. No file caching is done, each call opens the file again.
 
+B<WARNING:> If your CRL file is missing, can not be opened is empty or has no blocked certificate at all in it, then every call will get blocked!
+
 =item clientCertIds()
 
 Returns an array of every certificate found by OpenSSL. Each element
-is again a array: First element is the value of X509_get_subject_name,
-second is the value of X509_get_issuer_name and third element is the
-serial of the certificate in binary form. You have to use split and use
-"ord" to convert it to a readable form. Example:
+is again a array. The first element is the value of I<X509_get_subject_name>,
+second is the value of I<X509_get_issuer_name> and third element is the
+serial of the certificate in binary form. You have to use I<split()> and
+I<ord()> to convert it to a readable form. Example:
 
    my ($certid) = ($heap->{sslfilter}->clientCertIds());
    $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".hexdump($certid->[2]) : 'No client certificate';
 
 =item clientCertValid()
 
-Returns true if there is a client certificate that is valid. It
-also tests against the crl, if you have set the I<cacrl>
-option on new().
+Returns I<true> if there is a client certificate that is valid. It
+also tests against the crl, if you have the I<cacrl> option set on new().
 
 =item clientCertExists()
 
-Returns true if there is a client certificate, that maybe is untrusted.
+Returns I<true> if there is a client certificate, that maybe is untrusted.
 
-B<WARNING:> If the client provides an untrusted client certficate or which is listed in CRL, this function maybe return true! You have to ask clientCertValid() if the certicate is valid!
+B<WARNING:> If the client provides an untrusted client certficate a client certicate that is listed in CRL, this function maybe return I<true>. You have to ask clientCertValid() if the certicate is valid!
 
 =item hexdump($string)
 
 Returns string data in hex format.
 
-For example:
+Example:
 
   perl -e 'use POE::Filter::SSL; print POE::Filter::SSL::hexdump("test")."\n";'
   74:65:73:74
@@ -514,7 +515,7 @@ For example:
 
 =head1 ADVANCED EXAMPLE
 
-The following example implements a HTTPS server with client certificate validation, which shows many details about the verified client certificate. If you uncomment the POE::Filter::HTTPD block, it also shows the URI property of the parsed HTTP::Response object from POE::Filter::HTTPD.
+The following example implements a HTTPS server with client certificate validation, which shows details about the verified client certificate. If you uncomment the POE::Filter::HTTPD block, it also shows the URI property of the parsed HTTP::Response object from POE::Filter::HTTPD.
 
   #!perl
 
