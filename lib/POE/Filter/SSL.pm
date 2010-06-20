@@ -5,7 +5,7 @@ use POE::Filter;
 use Net::SSLeay;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.05';
+$VERSION = '0.06';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;

@@ -16,3 +16,10 @@ Revision history for POE-Filter-SSL
 	Improved the documentation
 	Parameters now without reference
 
+0.05	20.06.2010
+	Fixed the documentation
+	Renamed clientcertrequest to clientcert
+
+0.06	20.06.2010
+	Fixed the documentation
+

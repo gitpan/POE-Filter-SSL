@@ -120,10 +120,10 @@ FUNCTIONS
           The key file (.key) of the certificate for the server.
 
         clientcert
-          The server requested the client for a client certificat during ssl
+          The server requests the client for a client certificat during ssl
           handshake.
 
-          WARNING: If the client provides a untrusted or no client
+          WARNING: If the client provides an untrusted or no client
           certficate, the connection is not failing! You have to ask
           clientCertValid() if the certicate is valid!
 
@@ -175,7 +175,7 @@ FUNCTIONS
         Returns true if there is a client certificate, that maybe is
         untrusted.
 
-        WARNING: If the client provides a untrusted client certficate or
+        WARNING: If the client provides an untrusted client certficate or
         which is listed in CRL, this function maybe return true! You have to
         ask clientCertValid() if the certicate is valid!
 
