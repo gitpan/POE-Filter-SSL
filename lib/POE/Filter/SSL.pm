@@ -5,7 +5,7 @@ use POE::Filter;
 use Net::SSLeay;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.04';
+$VERSION = '0.05';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -44,7 +44,7 @@ sub new {
    }
 
    if ($params->{cipher}) {
-      Net::SSLeay::CTX_set_cipher_list($self->{context}, "AES256-SHA");
+      Net::SSLeay::CTX_set_cipher_list($self->{context}, $params->{cipher});
    }
 
    $self->{bio} = Net::SSLeay::BIO_new(BIO_get_handler());
@@ -408,9 +408,9 @@ The key file (.key) of the certificate for the server.
 
 =item clientcert
 
-The server requested the client for a client certificat during ssl handshake.
+The server requests the client for a client certificat during ssl handshake.
 
-B<WARNING:> If the client provides a untrusted or no client certficate, the connection is B<not> failing! You have to ask clientCertValid() if the certicate is valid!
+B<WARNING:> If the client provides an untrusted or no client certficate, the connection is B<not> failing! You have to ask clientCertValid() if the certicate is valid!
 
 =item cacrt
 
@@ -465,7 +465,7 @@ option on new().
 
 Returns true if there is a client certificate, that maybe is untrusted.
 
-B<WARNING:> If the client provides a untrusted client certficate or which is listed in CRL, this function maybe return true! You have to ask clientCertValid() if the certicate is valid!
+B<WARNING:> If the client provides an untrusted client certficate or which is listed in CRL, this function maybe return true! You have to ask clientCertValid() if the certicate is valid!
 
 =item hexdump($string)
 
