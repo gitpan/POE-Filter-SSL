@@ -5,7 +5,7 @@ use POE::Filter;
 use Net::SSLeay;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.10';
+$VERSION = '0.11';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -32,6 +32,8 @@ sub new {
    $self->{debug} = $params->{debug} || 0;
    $self->{cacrl} = $params->{cacrl} || undef;
    $self->{client} = $params->{client} || 0;
+   $self->{bufsize} = unpack("S", get_BUFSIZE());
+   print "Using buffersize ".$self->{bufsize}."\n" if $debug;
 
    $self->{context} = Net::SSLeay::CTX_new();
 
@@ -86,9 +88,7 @@ sub clone {
 sub get_one_start {
    my ($self, $data) = @_;
    print "GETONESTART: NETWORK -> SSL -> POE: ".hexdump(join("", @$data))."\n" if $debug;
-   #print "Writing ".length(join("", @$data))." Bytes to BIO ".$self->{bio}."xxx".$self->{ssl}."\n" if $debug;
-   my $bio = $self->{bio};
-   BIO_write($bio, join("", @$data));
+   $self->writeToSSLBIO(join("", @$data), $self->{accepted} ? 0 : 1);
    []
 }
 
@@ -97,7 +97,7 @@ sub get_one {
    print "GETONE: BEGIN\n" if $debug;
    my @return = ();
    push(@return, '') if ($self->doSSL() || $self->{buffer});
-   my $data = Net::SSLeay::read($self->{ssl}, 65535);
+   my $data = Net::SSLeay::read($self->{ssl}, $self->{bufsize});
    push(@return, $data) if $data;
    [@return]
 }
@@ -109,11 +109,10 @@ sub get {
    #print "GET:\n" if $debug;
    push(@return, '') if ($self->doSSL() || $self->{buffer});
    foreach my $data (@$chunks) {
-      my $bio = $self->{bio};
-      BIO_write($bio, join("", @$data));
-      #print "GET: NETWORK -> SSL -> POE: ".join("", @$data)."\n" if $debug;
-      my $data = Net::SSLeay::read($self->{ssl}, 65535);
-      #print "GET: Read ".length($data)." bytes.\n" if $debug;
+      print "GET: NETWORK -> SSL -> POE: ".join("", @$data)."\n" if $debug;
+      $self->writeToSSLBIO(join("", @$data));
+      my $data = Net::SSLeay::read($self->{ssl}, $self->{bufsize});
+      print "GET: Read ".length($data)." bytes.\n" if $debug;
       push(@return, $data);
    }
    [@return]
@@ -127,20 +126,15 @@ sub put {
    if ($self->{accepted}) {
       if (defined($self->{sendbuf})) {
          foreach my $cdata (@{$self->{sendbuf}}) {
-            die("PUT: Not all data given to SSL")
-               if (Net::SSLeay::write($self->{ssl}, $cdata) != length($cdata));
+            $self->writeToSSL($cdata);
          }
          delete($self->{sendbuf});
-         $self->doSSL();
       }
    }
    foreach my $data (@$chunks) {
       print "PUT: POE -> SSL -> NETWORK: ".$data."\r\n" if $debug;
       if ($self->{accepted}) {
-         if ((my $sent = Net::SSLeay::write($self->{ssl}, $data)) != length($data)) {
-            die("PUT: Not all data given to SSL: ".$sent." != ".length($data));
-         }
-         $self->doSSL();
+         $self->writeToSSL($data);
       } else {
          push(@{$self->{sendbuf}}, $data) if ($data);
       }
@@ -149,6 +143,36 @@ sub put {
    $self->{buffer} = '';
    [@return]
 }
+
+sub writeToSSL {
+   my $self = shift;
+   my $data = shift;
+   while(my $curdata = substr($data, 0, $self->{bufsize}, "")) {
+      print "writeToSSL bufsize=".$self->{bufsize}." length(curdata)=".length($curdata)."\n" if $debug;
+      if ((my $sent = Net::SSLeay::write($self->{ssl}, $curdata)) != length($curdata)) {
+         my $err2 = Net::SSLeay::get_error($self->{ssl}, $sent);
+         die("PUT: Not all data given to SSL(".$err2."): ".$sent." != ".length($curdata)) if ($sent);
+      }
+      $self->doSSL();
+   }
+}
+
+sub writeToSSLBIO {
+   my $self = shift;
+   my $data = shift;
+   my $nodoSSL = shift;
+   while(my $curdata = substr($data, 0, $self->{bufsize}, "")) {
+      print "writeToSSLBIO maxbufsize=".$self->{bufsize}." size=".length($curdata)."\n" if $debug;
+      my $bio = $self->{bio};
+      my $len = length($curdata);
+      if ((my $sent = BIO_write($bio, $curdata)) != $len) {
+         my $err2 = Net::SSLeay::get_error($self->{ssl}, $sent);
+         die("GET: Not all data given to BIO SSL(".$err2."): ".$sent." != ".$len) if ($sent);
+      }
+      $self->doSSL() unless $nodoSSL;
+   }
+}
+
 
 sub get_pending {
   my $self = shift;
@@ -160,6 +184,7 @@ sub get_pending {
 sub doSSL {
    my $self = shift;
    my $ret = 0;
+   print "SSLing..." if $debug;
    unless ($self->{accepted}) {
       my $err = $self->{client} ?
          Net::SSLeay::connect($self->{ssl}) :
@@ -179,6 +204,7 @@ sub doSSL {
    my $bio = $self->{bio};
    my $data = BIO_read($bio);
    $self->{buffer} .= $data if ($data);
+   print $ret."\n" if $debug;
    return $ret;
 }
 
@@ -262,7 +288,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.10
+Version 0.11
 
 =head1 DESCRIPTION
 
@@ -511,6 +537,12 @@ Example:
 =item put()
 
 =item verify_serial_against_crl_file()
+
+=item get_BUFSIZE()
+
+=item writeToSSL()
+
+=item writeToSSLBIO()
 
 =back
 

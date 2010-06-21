@@ -43,7 +43,7 @@ POE::Session->create(
                         cipher => 'AES256-SHA',
                         cacrl  => 'ca.crl',
                         debug  => 1,
-                        clientcertrequest => 1
+                        clientcert => 1
                      ),
                      InputEvent => 'socket_input',
                      ErrorEvent => '_stop',

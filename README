@@ -2,7 +2,7 @@ NAME
     POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 VERSION
-    Version 0.10
+    Version 0.11
 
 DESCRIPTION
     This module allows to secure connections of POE::Wheel::ReadWrite with
@@ -207,6 +207,9 @@ FUNCTIONS
     hello()
     put()
     verify_serial_against_crl_file()
+    get_BUFSIZE()
+    writeToSSL()
+    writeToSSLBIO()
 
 ADVANCED EXAMPLE
     The following example implements a HTTPS server with client certificate

@@ -32,6 +32,10 @@ Revision history for POE-Filter-SSL
 0.09    20.06.2010
         Fixed the support of write bigger than 32KBytes to 65Kbytes
 
-0.10    20.06.2010
-        Fixed the support of write bigger than 65535 bytes to 65536 bytes
+0.10	20.06.2010
+	Fixed the support of write bigger than 65535 bytes to 65536 bytes
+
+0.11	21.06.2010
+	Fixed the support of write bigger than 65535 bytes by a new buffer
+	with a static BIO OpenSLL buffer of 16 Kbyte per connection
 

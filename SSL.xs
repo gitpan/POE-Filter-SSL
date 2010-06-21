@@ -8,7 +8,7 @@
 
 #define recvsize *((unsigned short *) bio->ptr)
 #define sendsize *((unsigned short *) (bio->ptr+2))
-#define BUFSIZE 65535
+#define BUFSIZE 8192
 
 static int pfs_bio_create( BIO *bio ) {
 #ifdef DEBUG
@@ -42,14 +42,14 @@ static int pfs_bio_destroy( BIO *bio ) {
 static int pfs_bio_read( BIO *bio, char *buf, int len ) {
    int mylen = len;
 #ifdef DEBUG
-   printf("pfs_bio_read! %d %d\n", len, bio->ptr);
+   printf("pfs_bio_read! len=%d bio->ptr=%d\n", len, bio->ptr);
 #endif
    BIO_clear_retry_flags(bio);
    if ((bio != 0) && (bio->ptr != 0)) {
       if (mylen > recvsize) mylen = recvsize;
       memcpy(buf, (bio->ptr+4), mylen);
 #ifdef DEBUG
-      printf("pfs_bio_read2! %d %d\n", len, mylen);
+      printf("pfs_bio_read2! %d %d %d\n", len, mylen, recvsize);
       int i = 0;
       for(i = 0; i < mylen; i++) {
          printf("%02X:", *((unsigned char *) bio->ptr+4 + i));
@@ -66,7 +66,7 @@ static int pfs_bio_read( BIO *bio, char *buf, int len ) {
 
 static int pfs_bio_write( BIO *bio, const char *buf, int len ) {
 #ifdef DEBUG
-   printf("pfs_bio_write! %d\n", len);
+   printf("pfs_bio_write! len=%d sendsize=%d\n", len, sendsize);
 #endif
    if ((sendsize + len) > BUFSIZE) len = BUFSIZE - sendsize;
    memcpy(bio->ptr+4+BUFSIZE+sendsize, buf, len);
@@ -77,39 +77,35 @@ static int pfs_bio_write( BIO *bio, const char *buf, int len ) {
 
 static long pfs_bio_ctrl( BIO *bio, int cmd, long num, void *ptr ) {
 #ifdef DEBUG
-   printf("pfs_bio_ctrl! %d ",  bio);
+   printf("pfs_bio_ctrl! bio=%d cmd=%d", bio, cmd);
    if (cmd == BIO_CTRL_EOF) {
-      printf("BIO_CTRL_EOF\n");
+      printf("(BIO_CTRL_EOF)\n");
    } else if (cmd == BIO_CTRL_RESET) {
-      printf("BIO_CTRL_RESET\n");
+      printf("(BIO_CTRL_RESET)\n");
    } else if (cmd == BIO_C_FILE_SEEK) {
-      printf("BIO_C_FILE_SEEK\n");
+      printf("(BIO_C_FILE_SEEK)\n");
    } else if (cmd == BIO_C_FILE_TELL) {
-      printf("BIO_C_FILE_TELL\n");
+      printf("(BIO_C_FILE_TELL)\n");
    } else if (cmd == BIO_CTRL_INFO) {
-      printf("BIO_CTRL_INFO\n");
+      printf("(BIO_CTRL_INFO)\n");
    } else if (cmd == BIO_CTRL_PENDING) {
-      printf("BIO_CTRL_PENDING\n");
+      printf("(BIO_CTRL_PENDING)\n");
    } else if (cmd == BIO_CTRL_WPENDING) {
-      printf("BIO_CTRL_WPENDING\n");
+      printf("(BIO_CTRL_WPENDING)\n");
    } else if (cmd == BIO_CTRL_DUP) {
-      printf("BIO_CTRL_DUP\n");
+      printf("(BIO_CTRL_DUP)\n");
    } else if (cmd == BIO_CTRL_PUSH) {
-      printf("BIO_CTRL_PUSH\n");
+      printf("(BIO_CTRL_PUSH)\n");
    } else if (cmd == BIO_CTRL_POP) {
-      printf("BIO_CTRL_POP\n");
+      printf("(BIO_CTRL_POP)\n");
    } else
 #endif
    if ( cmd == BIO_CTRL_FLUSH ) {
       /* The OpenSSL library needs this */
 #ifdef DEBUG
-      printf("BIO_CTRL_FLUSH\n");
+      printf("(BIO_CTRL_FLUSH)\n");
 #endif
       return 1;
-#ifdef DEBUG
-   } else {
-      printf("%d\n", cmd);
-#endif
    }
    return 0;
 }
@@ -122,7 +118,9 @@ static int pfs_bio_gets( BIO *bio, char *buf, int len ) {
 }
 
 static int pfs_bio_puts( BIO *bio, const char *str ) {
-   //printf("pfs_bio_puts!\n");
+#ifdef DEBUG
+   printf("pfs_bio_puts!\n");
+#endif
    return pfs_bio_write( bio, str, strlen( str ) );
 }
    
@@ -170,13 +168,12 @@ BIO_write(bio, str)
    int i;
    printf("SRC:\n");
    for(i = 0; i < len; i++) {
-      //(unsigned char *) bio->ptr + recvsize + i) = ((unsigned char *)  mystr + i);
       printf("%02X:",  *((unsigned char *)  mystr + i));
    }
    printf("\n");
    printf("DST:\n");
    for(i = 0; i < recvsize; i++) {
-      printf("%02X:", *((unsigned char *) bio->ptr + i));
+      printf("%02X:", *((unsigned char *) bio->ptr + i + 4));
    }
    printf("\n");
 #endif
@@ -185,6 +182,7 @@ ASN1_INTEGER *
 BIO_read(bio)
    BIO *                bio
    CODE:
+      ST(0) = sv_newmortal();   /* Undefined to start with */
 #ifdef DEBUG
       printf("BIO_read\n");
 #endif
@@ -203,12 +201,19 @@ BIO_read(bio)
       }
 
 ASN1_INTEGER *
+get_BUFSIZE()
+   CODE:
+      unsigned short mybufsize = BUFSIZE/2;
+      ST(0) = sv_newmortal();
+      sv_setpvn(ST(0), (unsigned char *) &mybufsize, sizeof(mybufsize));
+
+ASN1_INTEGER *
 X509_get_serialNumber(cert)
    X509 *      cert
    CODE:
-   RETVAL = X509_get_serialNumber(cert);
-   ST(0) = sv_newmortal();   /* Undefined to start with */
-   sv_setpvn( ST(0), RETVAL->data, RETVAL->length);
+      RETVAL = X509_get_serialNumber(cert);
+      ST(0) = sv_newmortal();   /* Undefined to start with */
+      sv_setpvn( ST(0), RETVAL->data, RETVAL->length);
 
 ASN1_INTEGER *
 verify_serial_against_crl_file(crlfile, serial)
