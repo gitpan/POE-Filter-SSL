@@ -39,3 +39,7 @@ Revision history for POE-Filter-SSL
 	Fixed the support of write bigger than 65535 bytes by a new buffer
 	with a static BIO OpenSLL buffer of 16 Kbyte per connection
 
+0.12	03.07.2010
+	Fixed the documentation
+	Removed the own BIO implementation and using now BIO_s_mem of OpenSSL
+
