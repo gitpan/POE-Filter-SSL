@@ -5,7 +5,7 @@ use Net::SSLeay;
 use POE::Filter::Stackable;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.14';
+$VERSION = '0.15';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -194,7 +194,7 @@ sub doHandshake {
       if (ref($readWrite->get_output_filter()) eq "POE::Filter::SSL") {
          $readWrite->set_output_filter(POE::Filter::Stackable->new(
             Filters => [
-               $readWrite->get_input_filter(),
+               $readWrite->get_output_filter(),
                @newFilters
             ])
          );
@@ -319,7 +319,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.14
+Version 0.15
 
 =head1 DESCRIPTION
 
