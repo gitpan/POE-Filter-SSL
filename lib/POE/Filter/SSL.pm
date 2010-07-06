@@ -5,7 +5,7 @@ use Net::SSLeay;
 use POE::Filter::Stackable;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.13';
+$VERSION = '0.14';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -167,16 +167,16 @@ sub writeToSSLBIO {
 }
 
 sub doHandshake {
-   my $self = shift;
    my $readWrite = shift;
+   $readWrite = shift if (ref($readWrite) eq "POE::Filter::SSL");
    my @newFilters = @_;
    if (@newFilters) {
       if (ref($readWrite->get_input_filter()) eq "POE::Filter::SSL") {
          #print "ClientInput: ".$request."\n";
-         if ($self->handshakeDone(ignorebuf => 1)) {
+         if ($readWrite->get_input_filter()->handshakeDone(ignorebuf => 1)) {
             $readWrite->set_input_filter(POE::Filter::Stackable->new(
                Filters => [
-                  $self,
+                  $readWrite->get_input_filter(),
                   @newFilters
                ])
             );
@@ -184,7 +184,8 @@ sub doHandshake {
       }
    }
 
-   unless ($self->handshakeDone()) {
+   unless ((ref($readWrite->get_output_filter()) ne "POE::Filter::SSL") ||
+               ($readWrite->get_output_filter()->handshakeDone())) {
       $readWrite->put();
       return 0;
    }
@@ -193,7 +194,7 @@ sub doHandshake {
       if (ref($readWrite->get_output_filter()) eq "POE::Filter::SSL") {
          $readWrite->set_output_filter(POE::Filter::Stackable->new(
             Filters => [
-               $self,
+               $readWrite->get_input_filter(),
                @newFilters
             ])
          );
@@ -318,7 +319,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.13
+Version 0.14
 
 =head1 DESCRIPTION
 
@@ -442,8 +443,7 @@ By default POE::Filter::SSL acts as a SSL server. To use it in client mode you j
     ClientFilter => [ 'POE::Filter::SSL', crt => 'server.crt', key => 'server.key' ],
     ClientInput => sub {
       my ($kernel, $heap, $request) = @_[KERNEL, HEAP, ARG0];
-      return unless (ref($heap->{client}->get_output_filter()) ne "POE::Filter::SSL") ||
-                         $heap->{client}->get_output_filter()->doHandshake($heap->{client}, POE::Filter::HTTPD->new());
+      return unless (POE::Filter::SSL::doHandshake($heap->{client}, POE::Filter::HTTPD->new()));
       if ($request->isa("HTTP::Response")) {
         $heap->{client}->put($request);
         $kernel->yield("shutdown");
@@ -676,7 +676,7 @@ The following example implements a HTTPS server with client certificate verifica
             socket_input => sub {
               my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
               # The following line is needed to do the SSL handshake and add the Filter::HTTPD!
-              return unless $heap->{sslfilter}->doHandshake($heap->{socket_wheel}, POE::Filter::HTTPD->new());
+              return unless (POE::Filter::SSL::doHandshake($heap->{socket_wheel}, POE::Filter::HTTPD->new());
               my ($certid) = ($heap->{sslfilter}->clientCertIds());
               $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
               my $content = '';

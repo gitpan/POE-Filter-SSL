@@ -49,4 +49,6 @@ Revision history for POE-Filter-SSL
         POE::Component::Client::TCP the Filter::SSL together with
         Filter::HTTPD.
 
-        t
+0.14	06.07.2010
+	Improved the change of filters vi doHandshake().
+
