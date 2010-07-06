@@ -43,3 +43,10 @@ Revision history for POE-Filter-SSL
 	Fixed the documentation
 	Removed the own BIO implementation and using now BIO_s_mem of OpenSSL
 
+0.13	06.07.2010
+	Fixed the documentation
+	Allowing to use POE::Component::Server::TCP and
+        POE::Component::Client::TCP the Filter::SSL together with
+        Filter::HTTPD.
+
+        t

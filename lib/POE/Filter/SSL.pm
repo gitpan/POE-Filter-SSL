@@ -1,11 +1,11 @@
 package POE::Filter::SSL;
 
 use strict;
-use POE::Filter;
 use Net::SSLeay;
+use POE::Filter::Stackable;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.12';
+$VERSION = '0.13';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -166,6 +166,42 @@ sub writeToSSLBIO {
    $self->doSSL() unless $nodoSSL;
 }
 
+sub doHandshake {
+   my $self = shift;
+   my $readWrite = shift;
+   my @newFilters = @_;
+   if (@newFilters) {
+      if (ref($readWrite->get_input_filter()) eq "POE::Filter::SSL") {
+         #print "ClientInput: ".$request."\n";
+         if ($self->handshakeDone(ignorebuf => 1)) {
+            $readWrite->set_input_filter(POE::Filter::Stackable->new(
+               Filters => [
+                  $self,
+                  @newFilters
+               ])
+            );
+         }
+      }
+   }
+
+   unless ($self->handshakeDone()) {
+      $readWrite->put();
+      return 0;
+   }
+
+   if (@newFilters) {
+      if (ref($readWrite->get_output_filter()) eq "POE::Filter::SSL") {
+         $readWrite->set_output_filter(POE::Filter::Stackable->new(
+            Filters => [
+               $self,
+               @newFilters
+            ])
+         );
+      }
+   }
+   
+   return 1;
+}
 
 sub get_pending {
   my $self = shift;
@@ -233,14 +269,14 @@ sub clientCertNotOnCRL {
       foreach (@{$self->{infos}->[2]}) {
          my $crlstatus = verify_serial_against_crl_file($crlfilename, $_->[2]);
          $badcrls++ if $crlstatus;
-         $crlstatus = $crlstatus ? "INVALID (".($crlstatus !~ m,^CRL:, ? hexdump($crlstatus) : $crlstatus).")" : "VALID";
+         $crlstatus = $crlstatus ? "INVALID (".($crlstatus !~ m,^CRL:, ? $self->hexdump($crlstatus) : $crlstatus).")" : "VALID";
          my $t = ("  " x $jump++);
          if (ref($_) eq "ARRAY") {
             if ($self->{debug}){
                print(" ".$t."  |---[ Subcertificate ]---\n") if $t;
                print(" ".$t."  | Subject Name: ".$_->[0]."\n");
                print(" ".$t."  | Issuer Name : ".$_->[1]."\n");
-               print(" ".$t."  | Serial      : ".hexdump($_->[2])."\n");
+               print(" ".$t."  | Serial      : ".$self->hexdump($_->[2])."\n");
                print(" ".$t."  | CRL Status  : ".$crlstatus."\n");
             }
          } else {
@@ -270,7 +306,7 @@ sub DESTROY {
    #   if $self->{bio};
 }
 
-sub hexdump { join ':', map { sprintf "%02X", $_ } unpack "C*", $_[0]; }
+sub hexdump { my $self = shift; join ':', map { sprintf "%02X", $_ } unpack "C*", $_[0]; }
 
 1;
 
@@ -282,19 +318,19 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.11
+Version 0.13
 
 =head1 DESCRIPTION
 
 This module allows to secure connections of POE::Wheel::ReadWrite with OpenSSL by a
-POE::Filter object, and behaves beside of SSL as POE::Filter::Stream.
+POE::Filter object, and behaves (beside of SSLifying) like POE::Filter::Stream.
 
 POE::Filter::SSL can be added, switched and removed during runtime, for example if you
-want to initiate SSL (e.g. STARTTLS) on an established connection. You also can combine
+want to initiate SSL (e.g. STARTTLS) on an already established connection. You are able to combine
 POE::Filter::SSL with other filters, for example have an HTTPS server together
 with POE::Filter::HTTPD (see I<ADVANCED EXAMPLE> later on this site).
 
-POE::Filter::SSL is based on Net::SSLeay, but got own XS calls Net::SSLeay is missing.
+POE::Filter::SSL is based on Net::SSLeay, but got two XS functions which Net::SSLeay is missing.
 
 =over 4
 
@@ -334,11 +370,11 @@ Direct cipher encryption without SSL or TLS protocol, for example with static AE
 
 =head1 SYNOPSIS
 
-POE::Filter::SSL acts as default as a SSL server, to switch to client mode you have to set the I<client> option of new().
+By default POE::Filter::SSL acts as a SSL server. To use it in client mode you just have to set the I<client> option of I<new()>.
 
 =over 2
 
-=item Client
+=item TCP-Client
 
   #!perl
 
@@ -350,7 +386,7 @@ POE::Filter::SSL acts as default as a SSL server, to switch to client mode you h
   POE::Component::Client::TCP->new(
     RemoteAddress => "yahoo.com",
     RemotePort    => 443,
-    Filter        => [ "POE::Filter::SSL", client => 1 ],    ## HERE WE ARE!
+    Filter        => [ "POE::Filter::SSL", client => 1 ],
     Connected     => sub {
       $_[HEAP]{server}->put("HEAD /\r\n");
     },
@@ -365,7 +401,7 @@ POE::Filter::SSL acts as default as a SSL server, to switch to client mode you h
   POE::Kernel->run();
   exit;
 
-=item Server
+=item TCP-Server
 
   #!perl
 
@@ -393,13 +429,54 @@ POE::Filter::SSL acts as default as a SSL server, to switch to client mode you h
   POE::Kernel->run;
   exit;
 
+=item HTTPS-Server
+
+  #!perl
+  use warnings;
+  use strict;
+  use POE qw(Component::Server::TCP Filter::SSL Filter::HTTPD);
+  use HTTP::Response;
+  POE::Component::Server::TCP->new(
+    Alias        => "web_server",
+    Port         => 443,
+    ClientFilter => [ 'POE::Filter::SSL', crt => 'server.crt', key => 'server.key' ],
+    ClientInput => sub {
+      my ($kernel, $heap, $request) = @_[KERNEL, HEAP, ARG0];
+      return unless (ref($heap->{client}->get_output_filter()) ne "POE::Filter::SSL") ||
+                         $heap->{client}->get_output_filter()->doHandshake($heap->{client}, POE::Filter::HTTPD->new());
+      if ($request->isa("HTTP::Response")) {
+        $heap->{client}->put($request);
+        $kernel->yield("shutdown");
+        return;
+      }
+      my $request_fields = '';
+      $request->headers()->scan(
+        sub {
+          my ($header, $value) = @_;
+          $request_fields .= "<tr><td>$header</td><td>$value</td></tr>";
+        }
+      );
+      my $response = HTTP::Response->new(200);
+      $response->push_header('Content-type', 'text/html');
+      $response->content(
+        "<html><head><title>Your Request</title></head>"
+          . "<body>Details about your request:"
+          . "<table border='1'>$request_fields</table>"
+          . "</body></html>"
+      );
+      $heap->{client}->put($response);
+      $kernel->yield("shutdown");
+    }
+  );
+  $poe_kernel->run();
+
 =back
 
 =head1 FUNCTIONS
 
 =over 4
 
-=item B<new(options)>
+=item B<new(option, option, option...)>
 
 Returns a new B<POE::Filter::SSL> object. It accepts the following options:
 
@@ -425,15 +502,15 @@ The key file (.key) of the certificate for the server.
 
 The server requests the client for a client certificat during ssl handshake.
 
-B<WARNING:> If the client provides an untrusted or no client certficate, the connection is B<not> failing. You have to ask clientCertValid() if the certicate is valid!
+B<WARNING:> If the client provides an untrusted or no client certficate, the connection is B<not> failing. You have to ask I<clientCertValid()> if the certicate is valid!
 
 =item cacrt
 
-The ca certificate file (ca.crt), which is used to verificated the client certificates against a CA.
+The ca certificate file (ca.crt), which is used to verificate the client certificates against the CA.
 
 =item cacrl
 
-Configures a CRL against the client certificate is proofed by I<clientCertValid()>.
+Configures a CRL (ca.crl) against the client certificate is verified by I<clientCertValid()>.
 
 =item cipher
 
@@ -441,13 +518,13 @@ Specify which ciphers are allowed for the synchronous encrypted transfer of the 
 
 Example:
 
-   cipher => 'AES256-SHA'
+  cipher => 'AES256-SHA'
 
 =item blockbadclientcert
 
-Let OpenSSL deny the connection if there is no or an invalid client certificate. You will never get data from the client, nor can you send it an error message this was.
+Let OpenSSL deny the connection if there is no or an invalid client certificate.
 
-B<WARNING:> If the client is listed in the CRL file, the connection will be established! You have to ask I<clientCertValid()> if you have the I<crl> option on I<new()> has been set, otherwise I<clientCertNotOnCRL()> if the certificate is listed on CRL!
+B<WARNING:> If the client is listed in the CRL file, the connection will be established! You have to ask I<clientCertValid()> if you have the I<crl> option set on I<new()>, otherwise to ask I<clientCertNotOnCRL()> if the certificate is listed on your CRL file!
 
 =back
 
@@ -459,7 +536,7 @@ Returns I<true> if the handshake is done and all data for hanshake has been writ
 
 =item ignorebuf
 
-Returns I<true> if OpenSSL has established the connection, regardless if all data has been written out. This is needed if you want to exchange the Filter of POE::Wheel::ReadWrite before the first data comes in (see I<ADVANCED EXAMPLE> later on this site).
+Returns I<true> if OpenSSL has established the connection, regardless if all data has been written out. This is needed if you want to exchange the Filter of POE::Wheel::ReadWrite before the first data comes in. This option is currently only used by I<doHandshake()> to be able to add new filters before first cleartext data to be processed gets in.
 
 =back
 
@@ -479,19 +556,25 @@ I<ord()>, or the I<hexdump()> function, to convert it to a readable form.
 
 Example:
 
-   my ($certid) = ($heap->{sslfilter}->clientCertIds());
-   $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".hexdump($certid->[2]) : 'No client certificate';
+  my ($certid) = ($heap->{sslfilter}->clientCertIds());
+  $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
 
 =item clientCertValid()
 
 Returns I<true> if there is a client certificate that is valid. It
-also tests against the crl, if you have the I<cacrl> option set on I<new()>.
+also tests against the CRL, if you have the I<cacrl> option set on I<new()>.
+
+=item doHandshake($readWrite, $filter, $filter, ...)
+
+Allows to add filters after the ssl handshake. It has to be called in the input handler, and needs the passing of the POE::Wheel::ReadWhile object. If it returns false, you have to return from the input handler.
+
+See the I<HTTP-Server> example in I<SYNOPSIS> or the I<ADVANCED EXAMPLE> later on this site how use it.
 
 =item clientCertExists()
 
-Returns I<true> if there is a client certificate, that maybe is untrusted.
+Returns I<true> if there is a client certificate, that might be untrusted.
 
-B<WARNING:> If the client provides an untrusted client certficate a client certicate that is listed in CRL, this function maybe return I<true>. You have to ask I<clientCertValid()> if the certicate is valid!
+B<WARNING:> If the client provides an untrusted client certficate a client certicate that is listed in CRL, this function returns I<true>. You have to ask I<clientCertValid()> if the certicate is valid!
 
 =item hexdump($string)
 
@@ -499,7 +582,7 @@ Returns string data in hex format.
 
 Example:
 
-  perl -e 'use POE::Filter::SSL; print POE::Filter::SSL::hexdump("test")."\n";'
+  perl -e 'use POE::Filter::SSL; print POE::Filter::SSL->hexdump("test")."\n";'
   74:65:73:74
 
 =back
@@ -536,7 +619,7 @@ Example:
 
 =head1 ADVANCED EXAMPLE
 
-The following example implements a HTTPS server with client certificate verification, which shows details about the verified client certificate. If you uncomment the POE::Filter::HTTPD block, it also shows the URI property of the parsed HTTP::Response object from POE::Filter::HTTPD.
+The following example implements a HTTPS server with client certificate verification, which shows details about the verified client certificate. It uses I<doHandshake> to add Filter::HTTPD to process the cleartext data.
 
   #!perl
 
@@ -581,7 +664,7 @@ The following example implements a HTTPS server with client certificate verifica
                   key    => 'server.key',
                   cactr  => 'ca.crt',
                   cipher => 'AES256-SHA',
-                  cacrl  => 'ca.crl',
+                  #cacrl  => 'ca.crl', # Uncomment this, if you have a CRL file.
                   debug  => 1,
                   clientcert => 1
                 ),
@@ -592,33 +675,24 @@ The following example implements a HTTPS server with client certificate verifica
             },
             socket_input => sub {
               my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
-              ### Uncomment the follwing lines if you want to use POE::Filter::HTTPD after the SSL handshake
-              #if (ref($heap->{socket_wheel}->get_input_filter()) eq "POE::Filter::SSL") {
-              #   if ($heap->{sslfilter}->handshakeDone(ignorebuf => 1)) {
-              #      $heap->{socket_wheel}->set_input_filter(POE::Filter::Stackable->new(
-              #         Filters => [
-              #            $heap->{sslfilter},
-              #            POE::Filter::HTTPD->new()
-              #         ])
-              #      );
-              #   }
-              #}
-              # This following line is needed to do the SSL handshake!
-              return $heap->{socket_wheel}->put()
-                unless $heap->{sslfilter}->handshakeDone();
+              # The following line is needed to do the SSL handshake and add the Filter::HTTPD!
+              return unless $heap->{sslfilter}->doHandshake($heap->{socket_wheel}, POE::Filter::HTTPD->new());
               my ($certid) = ($heap->{sslfilter}->clientCertIds());
-              $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".hexdump($certid->[2]) : 'No client certificate';
-              my $content = "HTTP/1.0 OK\r\nContent-type: text/html\r\n\r\n";
+              $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
+              my $content = '';
               if ($heap->{sslfilter}->clientCertValid()) {
                 $content .= "Hello <font color=green>valid</font> client Certifcate:";
               } else {
                 $content .= "None or <font color=red>invalid</font> client certificate:";
               }
               $content .= "<hr>".$certid."<hr>";
-              $content .= "Your URL was: ".$buf->uri."<hr>" # This line will only appear if you uncomment the lines above!
+              $content .= "Your URL was: ".$buf->uri."<hr>"
                 if (ref($buf) eq "HTTP::Request");
               $content .= localtime(time());
-              $heap->{socket_wheel}->put($content);
+              my $response = HTTP::Response->new(200);
+              $response->push_header('Content-type', 'text/html');
+              $response->content($content);
+              $heap->{socket_wheel}->put($response);
               $kernel->delay(_stop => 1);
             },
             _stop => sub {
@@ -630,6 +704,7 @@ The following example implements a HTTPS server with client certificate verifica
       }
     }
   );
+
   $poe_kernel->run();
 
 =head1 AUTHOR
