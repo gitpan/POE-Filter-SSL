@@ -5,7 +5,7 @@ use Net::SSLeay;
 use POE::Filter::Stackable;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.16';
+$VERSION = '0.17';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -150,7 +150,7 @@ sub writeToSSL {
    my $data = shift;
    if ((my $sent = Net::SSLeay::write($self->{ssl}, $data)) != length($data)) {
       my $err2 = Net::SSLeay::get_error($self->{ssl}, $sent);
-      die("PUT: Not all data given to SSL(".$err2."): ".$sent." != ".length($data)) if ($sent);
+      #die("PUT: Not all data given to SSL(".$err2."): ".$sent." != ".length($data)) if ($sent);
    }
    $self->doSSL();
 }
@@ -161,7 +161,7 @@ sub writeToSSLBIO {
    my $nodoSSL = shift;
    if ((my $sent = Net::SSLeay::BIO_write($self->{rbio}, $data)) != length($data)) {
       my $err2 = Net::SSLeay::get_error($self->{ssl}, $sent);
-      die("GET: Not all data given to BIO SSL(".$err2."): ".$sent." != ".length($data)) if ($sent);
+      #die("GET: Not all data given to BIO SSL(".$err2."): ".$sent." != ".length($data)) if ($sent);
    }
    $self->doSSL() unless $nodoSSL;
 }
@@ -227,9 +227,9 @@ sub doSSL {
       } else {
          my $err2 = Net::SSLeay::get_error($self->{ssl}, $err);
          unless ($err2 == Net::SSLeay::ERROR_WANT_READ()) {
-            die("ERROR: ERR1:".$err." ERR2:".$err2." HINT: In server mode:".
-                " Check if you have configured a CRT and KEY file, and that ".
-                "both are readable.") unless ($err2 == 5); # SSL_ERROR_SYSCALL
+            #die("ERROR: ERR1:".$err." ERR2:".$err2." HINT: In server mode:".
+            #    " Check if you have configured a CRT and KEY file, and that ".
+            #    "both are readable.") unless ($err2 == 5); # SSL_ERROR_SYSCALL
          }
       }
    }
@@ -319,7 +319,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.16
+Version 0.17
 
 =head1 DESCRIPTION
 
