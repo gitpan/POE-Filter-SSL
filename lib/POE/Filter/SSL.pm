@@ -5,7 +5,7 @@ use Net::SSLeay;
 use POE::Filter::Stackable;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.15';
+$VERSION = '0.16';
 @ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -319,7 +319,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.15
+Version 0.16
 
 =head1 DESCRIPTION
 
@@ -676,7 +676,7 @@ The following example implements a HTTPS server with client certificate verifica
             socket_input => sub {
               my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
               # The following line is needed to do the SSL handshake and add the Filter::HTTPD!
-              return unless (POE::Filter::SSL::doHandshake($heap->{socket_wheel}, POE::Filter::HTTPD->new());
+              return unless POE::Filter::SSL::doHandshake($heap->{socket_wheel}, POE::Filter::HTTPD->new());
               my ($certid) = ($heap->{sslfilter}->clientCertIds());
               $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
               my $content = '';

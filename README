@@ -2,7 +2,7 @@ NAME
     POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 VERSION
-    Version 0.15
+    Version 0.16
 
 DESCRIPTION
     This module allows to secure connections of POE::Wheel::ReadWrite with
@@ -329,7 +329,7 @@ ADVANCED EXAMPLE
                 socket_input => sub {
                   my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
                   # The following line is needed to do the SSL handshake and add the Filter::HTTPD!
-                  return unless (POE::Filter::SSL::doHandshake($heap->{socket_wheel}, POE::Filter::HTTPD->new());
+                  return unless POE::Filter::SSL::doHandshake($heap->{socket_wheel}, POE::Filter::HTTPD->new());
                   my ($certid) = ($heap->{sslfilter}->clientCertIds());
                   $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
                   my $content = '';
