@@ -13,7 +13,7 @@ WriteMakefile(
     PREREQ_PM => {
         'Test::More' => 0,
         'Net::SSLeay'   => '1.32',
-        'POE::Filter'   => 0,
+        'POE::Filter::Stackable' => 0,
         'XSLoader'      => 0
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },

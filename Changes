@@ -58,3 +58,10 @@ Revision history for POE-Filter-SSL
 0.16	06.07.2010
 	Fixed the ADVANCED EXAMPLE
 
+0.17	06.07.2010
+	Removed die()s
+
+0.18	08.07.2010
+	Fixed the handling of big packets
+	Fixed and improved the documentation
+
