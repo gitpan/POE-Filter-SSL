@@ -2,22 +2,19 @@ NAME
     POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 VERSION
-    Version 0.18
+    Version 0.19
 
 DESCRIPTION
     This module allows to secure connections of *POE::Wheel::ReadWrite* with
-    OpenSSL by a *POE::Filter* object, and behaves (beside of SSLing) as
-    *POE::Filter::Stream*.
+    OpenSSL by a *POE::Filter* object, and behaves (beside of the SSL stuff)
+    as *POE::Filter::Stream*.
 
-    *POE::Filter::SSL* can be added, switched and removed during runtime,
-    for example if you want to initiate SSL (see the *SSL on an established
-    connection* example in *SYNOPSIS*) on an already established connection.
-    You are able to combine *POE::Filter::SSL* with other filters, for
-    example have a HTTPS server together with *POE::Filter::HTTPD* (see the
-    *HTTPS-Server* example in *SYNOPSIS*).
+    *POE::Filter::SSL* can be added and removed during runtime, for example
+    if you want to initiate SSL via STARTTLS on an already established tcp
+    connection. You can combine *POE::Filter::SSL* with other filters, for
+    example have a HTTPS server together with *POE::Filter::HTTPD*.
 
-    *POE::Filter::SSL* is based on *Net::SSLeay*, but got two XS functions
-    which *Net::SSLeay* is missing.
+    POE::Filter::SSL is based on Net::SSLeay.
 
     Features
 
@@ -59,7 +56,7 @@ SYNOPSIS
           RemotePort    => 443,
           Filter        => [ "POE::Filter::SSL", client => 1 ],
           Connected     => sub {
-            $_[HEAP]{server}->put("HEAD /\r\n");
+            $_[HEAP]{server}->put("GET / HTTP/1.0\r\nHost: yahoo.com\r\n\r\n");
           },
           ServerInput   => sub {
             my $input = $_[ARG0];
@@ -335,7 +332,7 @@ SYNOPSIS
                       Filter     => POE::Filter::SSL->new(           ### HERE WE ARE!!!
                         crt    => 'server.crt',
                         key    => 'server.key',
-                        cactr  => 'ca.crt',
+                        cacrt  => 'ca.crt',
                         cipher => 'AES256-SHA',
                         #cacrl  => 'ca.crl', # Uncomment this, if you have a CRL file.
                         debug  => 1,
@@ -381,7 +378,7 @@ SYNOPSIS
         $poe_kernel->run();
 
 FUNCTIONS
-    new(option = value, option => value, option...)>
+    new(option, option, option...)
         Returns a new *POE::Filter::SSL* object. It accepts the following
         options:
 
@@ -434,9 +431,9 @@ FUNCTIONS
           *clientCertNotOnCRL()* if the certificate is listed on your CRL
           file!
 
-    handshakeDone(options)
+    handshakeDone(option)
         Returns *true* if the handshake is done and all data for hanshake
-        has been written out. It accepts the following options:
+        has been written out. It accepts the following option:
 
         ignorebuf
           Returns *true* if OpenSSL has established the connection,

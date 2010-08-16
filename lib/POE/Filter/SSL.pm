@@ -3,9 +3,10 @@ package POE::Filter::SSL;
 use strict;
 use Net::SSLeay;
 use POE::Filter::Stackable;
+use Carp;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.18';
+$VERSION = '0.19';
 #@ISA = qw(POE::Filter);
 
 our $globalinfos;
@@ -38,7 +39,7 @@ sub new {
    Net::SSLeay::CTX_use_RSAPrivateKey_file($self->{context}, $params->{key}, &Net::SSLeay::FILETYPE_PEM);
    Net::SSLeay::CTX_use_certificate_file($self->{context}, $params->{crt}, &Net::SSLeay::FILETYPE_PEM);
    if ($params->{cacrt}) {
-      Net::SSLeay::CTX_load_verify_locations($self->{context}, $params->{cactr}, '');
+      Net::SSLeay::CTX_load_verify_locations($self->{context}, $params->{cacrt}, '');
       Net::SSLeay::CTX_set_client_CA_list($self->{context}, Net::SSLeay::load_client_CA_file($params->{cacrt}));
       Net::SSLeay::CTX_set_verify_depth($self->{context}, 5);
    }
@@ -227,9 +228,11 @@ sub doSSL {
       } else {
          my $err2 = Net::SSLeay::get_error($self->{ssl}, $err);
          unless ($err2 == Net::SSLeay::ERROR_WANT_READ()) {
-            #die("ERROR: ERR1:".$err." ERR2:".$err2." HINT: In server mode:".
-            #    " Check if you have configured a CRT and KEY file, and that ".
-            #    "both are readable.") unless ($err2 == 5); # SSL_ERROR_SYSCALL
+            carp("POE::Filter::SSL: UNEXPECTED ERROR: ERR1:".$err." ERR2:".$err2.($self->{client} ? '' : " HINT: ".
+                "Check if you have configured a CRT and KEY file, and that ".
+                "both are readable")); # unless ($err2 == 5); # SSL_ERROR_SYSCALL
+            $ret++ unless $self->{accepted}++;
+            return $ret;
          }
       }
    }
@@ -320,19 +323,19 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.18
+Version 0.19
 
 =head1 DESCRIPTION
 
 This module allows to secure connections of I<POE::Wheel::ReadWrite> with OpenSSL by a
-I<POE::Filter> object, and behaves (beside of SSLing) as I<POE::Filter::Stream>.
+I<POE::Filter> object, and behaves (beside of the SSL stuff) as I<POE::Filter::Stream>.
 
-I<POE::Filter::SSL> can be added, switched and removed during runtime, for example if you
-want to initiate SSL (see the I<SSL on an established connection> example in I<SYNOPSIS>) on an already established connection. You are able to combine
+I<POE::Filter::SSL> can be added and removed during runtime, for example if you
+want to initiate SSL via STARTTLS on an already established tcp connection. You can combine
 I<POE::Filter::SSL> with other filters, for example have a HTTPS server together
-with I<POE::Filter::HTTPD> (see the I<HTTPS-Server> example in I<SYNOPSIS>).
+with I<POE::Filter::HTTPD>.
 
-I<POE::Filter::SSL> is based on I<Net::SSLeay>, but got two XS functions which I<Net::SSLeay> is missing.
+POE::Filter::SSL is based on Net::SSLeay.
 
 =over 4
 
@@ -390,7 +393,7 @@ By default I<POE::Filter::SSL> acts as a SSL server. To use it in client mode yo
     RemotePort    => 443,
     Filter        => [ "POE::Filter::SSL", client => 1 ],
     Connected     => sub {
-      $_[HEAP]{server}->put("HEAD /\r\n");
+      $_[HEAP]{server}->put("GET / HTTP/1.0\r\nHost: yahoo.com\r\n\r\n");
     },
     ServerInput   => sub {
       my $input = $_[ARG0];
@@ -676,7 +679,7 @@ The following example implements a HTTPS server with client certificate verifica
                 Filter     => POE::Filter::SSL->new(           ### HERE WE ARE!!!
                   crt    => 'server.crt',
                   key    => 'server.key',
-                  cactr  => 'ca.crt',
+                  cacrt  => 'ca.crt',
                   cipher => 'AES256-SHA',
                   #cacrl  => 'ca.crl', # Uncomment this, if you have a CRL file.
                   debug  => 1,
@@ -727,7 +730,7 @@ The following example implements a HTTPS server with client certificate verifica
 
 =over 4
 
-=item B<new(option => value, option => value, option...)>
+=item B<new(option, option, option...)>
 
 Returns a new I<POE::Filter::SSL> object. It accepts the following options:
 
@@ -779,9 +782,9 @@ B<WARNING:> If the client is listed in the CRL file, the connection will be esta
 
 =back
 
-=item handshakeDone(options)
+=item handshakeDone(option)
 
-Returns I<true> if the handshake is done and all data for hanshake has been written out. It accepts the following options:
+Returns I<true> if the handshake is done and all data for hanshake has been written out. It accepts the following option:
 
 =over 2
 

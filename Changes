@@ -65,3 +65,8 @@ Revision history for POE-Filter-SSL
 	Fixed the handling of big packets
 	Fixed and improved the documentation
 
+0.19	16.08.2010
+	Fixed typo in loading of certification files in server mode
+	Fixed endless loop if unexptected error came from OpenSSL
+	Fixed https client example
+
