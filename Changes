@@ -70,3 +70,8 @@ Revision history for POE-Filter-SSL
 	Fixed endless loop if unexptected error came from OpenSSL
 	Fixed https client example
 
+0.20	25.08.2010
+	Added support for POE::Component::Server::HTTP
+	Found a solution for the use to make ssh handshake without
+        the hack in the input handler
+

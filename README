@@ -2,19 +2,22 @@ NAME
     POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 VERSION
-    Version 0.19
+    Version 0.20
 
 DESCRIPTION
     This module allows to secure connections of *POE::Wheel::ReadWrite* with
-    OpenSSL by a *POE::Filter* object, and behaves (beside of the SSL stuff)
-    as *POE::Filter::Stream*.
+    OpenSSL by a *POE::Filter* object, and behaves (beside of SSLing) as
+    *POE::Filter::Stream*.
 
-    *POE::Filter::SSL* can be added and removed during runtime, for example
-    if you want to initiate SSL via STARTTLS on an already established tcp
-    connection. You can combine *POE::Filter::SSL* with other filters, for
-    example have a HTTPS server together with *POE::Filter::HTTPD*.
+    *POE::Filter::SSL* can be added, switched and removed during runtime,
+    for example if you want to initiate SSL (see the *SSL on an established
+    connection* example in *SYNOPSIS*) on an already established connection.
+    You are able to combine *POE::Filter::SSL* with other filters, for
+    example have a HTTPS server together with *POE::Filter::HTTPD* (see the
+    *HTTPS-Server* example in *SYNOPSIS*).
 
-    POE::Filter::SSL is based on Net::SSLeay.
+    *POE::Filter::SSL* is based on *Net::SSLeay*, but got two XS functions
+    which *Net::SSLeay* is missing.
 
     Features
 
@@ -56,13 +59,10 @@ SYNOPSIS
           RemotePort    => 443,
           Filter        => [ "POE::Filter::SSL", client => 1 ],
           Connected     => sub {
-            $_[HEAP]{server}->put("GET / HTTP/1.0\r\nHost: yahoo.com\r\n\r\n");
+            $_[HEAP]{server}->put("HEAD /\r\n\r\n");
           },
           ServerInput   => sub {
-            my $input = $_[ARG0];
-            # The following line is needed to do the SSL handshake!
-            return $_[HEAP]{server}->put() unless $input;
-            print "from server: $input\n";
+            print "from server: ".$_[ARG0]."\n";
           },
         );
 
@@ -82,14 +82,13 @@ SYNOPSIS
           ClientFilter => [ "POE::Filter::SSL", crt => 'server.crt', key => 'server.key' ],
           ClientConnected => sub {
             print "got a connection from $_[HEAP]{remote_ip}\n";
-            $_[HEAP]{client}->put("Smile from the server!");
+            $_[HEAP]{client}->put("Smile from the server!\r\n");
           },
+          Alias => "tcp",
           ClientInput => sub {
-            my $client_input = $_[ARG0];
-            # The following line is needed to do the SSL handshake!
-            return $_[HEAP]{client}->put() unless $client_input;
-            $client_input =~ tr[a-zA-Z][n-za-mN-ZA-M];
-            $_[HEAP]{client}->put($client_input);
+            my ($kernel, $session, $heap) = @_[KERNEL, SESSION, HEAP];
+            $_[HEAP]{client}->put("You sent:\r\n".$_[ARG0]);
+            $_[KERNEL]->yield("shutdown");
           },
         );
 
@@ -97,43 +96,35 @@ SYNOPSIS
         exit;
 
     HTTPS-Server
-        #!perl
-        use warnings;
-        use strict;
-        use POE qw(Component::Server::TCP Filter::SSL Filter::HTTPD);
-        use HTTP::Response;
-        POE::Component::Server::TCP->new(
-          Alias        => "web_server",
-          Port         => 443,
-          ClientFilter => [ 'POE::Filter::SSL', crt => 'server.crt', key => 'server.key' ],
-          ClientInput => sub {
-            my ($kernel, $heap, $request) = @_[KERNEL, HEAP, ARG0];
-            return unless (POE::Filter::SSL::doHandshake($heap->{client}, POE::Filter::HTTPD->new()));
-            if ($request->isa("HTTP::Response")) {
-              $heap->{client}->put($request);
-              $kernel->yield("shutdown");
-              return;
-            }
-            my $request_fields = '';
-            $request->headers()->scan(
-              sub {
-                my ($header, $value) = @_;
-                $request_fields .= "<tr><td>$header</td><td>$value</td></tr>";
-              }
-            );
-            my $response = HTTP::Response->new(200);
-            $response->push_header('Content-type', 'text/html');
-            $response->content(
-              "<html><head><title>Your Request</title></head>"
-                . "<body>Details about your request:"
-                . "<table border='1'>$request_fields</table>"
-                . "</body></html>"
-            );
-            $heap->{client}->put($response);
-            $kernel->yield("shutdown");
-          }
+        use POE::Filter::SSL;
+        use POE::Component::Server::HTTP;
+        use HTTP::Status;
+        my $aliases = POE::Component::Server::HTTP->new(
+          Port => 443,
+          ContentHandler => {
+            '/' => \&handler,
+            '/dir/' => sub { return; },
+            '/file' => sub { return; }
+          },
+          Headers => { Server => 'My Server' },
+          PreFilter => POE::Filter::SSL->new(
+            crt    => 'server.crt',
+            key    => 'server.key',
+            cacrt  => 'ca.crt'
+          )
         );
-        $poe_kernel->run();
+
+        sub handler {
+          my ($request, $response) = @_;
+          $response->code(RC_OK);
+          $response->content("Hi, you fetched ". $request->uri);
+          return RC_OK;
+        }
+
+        POE::Kernel->run();
+        POE::Kernel->call($aliases->{httpd}, "shutdown");
+        # next line isn't really needed
+        POE::Kernel->call($aliases->{tcp}, "shutdown");
 
 
 
@@ -155,84 +146,83 @@ SYNOPSIS
 
         my $defaultImapServer = "not.existing.de";
         my $usernameToImapServer = {
-           user1 => 'mailserver1.domain.de',
-           user2 => 'mailserver2.domain.de',
-           # ...
+          user1 => 'mailserver1.domain.de',
+          user2 => 'mailserver2.domain.de',
+          # ...
         };
 
         POE::Component::Server::TCP->new(
-           Port => 143,
-           ClientFilter => "POE::Filter::Stream",
-           ClientDisconnected => \&disconnect,
-           ClientConnected => \&connected,
-           ClientInput => \&handleInput,
-           InlineStates => {
-              send_stuff => \&send_stuff,
-              _child => \&child
-           }
+          Port => 143,
+          ClientFilter => "POE::Filter::Stream",
+          ClientDisconnected => \&disconnect,
+          ClientConnected => \&connected,
+          ClientInput => \&handleInput,
+          InlineStates => {
+            send_stuff => \&send_stuff,
+            _child => \&child
+          }
         );
 
         POE::Component::Server::TCP->new(
-           Port => 993,
-           ClientFilter => [ "POE::Filter::SSL", crt => 'server.crt', key => 'server.key' ],
-           ClientConnected => \&connected,
-           ClientDisconnected => \&disconnect,
-           ClientInput => \&handleInput,
-           InlineStates => {
-              send_stuff => \&send_stuff,
-              _child => \&child
-           }
+          Port => 993,
+          ClientFilter => [ "POE::Filter::SSL", crt => 'server.crt', key => 'server.key' ],
+          ClientConnected => \&connected,
+          ClientDisconnected => \&disconnect,
+          ClientInput => \&handleInput,
+          InlineStates => {
+            send_stuff => \&send_stuff,
+            _child => \&child
+          }
         );
 
         sub disconnect {
-           my ($kernel, $session, $heap) = @_[KERNEL, SESSION, HEAP];
-           logevent('server got disconnect', $session);
-           $kernel->post($heap->{client_id} => "shutdown");
+          my ($kernel, $session, $heap) = @_[KERNEL, SESSION, HEAP];
+          logevent('server got disconnect', $session);
+          $kernel->post($heap->{client_id} => "shutdown");
         }
 
         sub connected {
-           my ($kernel, $session, $heap) = @_[KERNEL, SESSION, HEAP];
-           logevent("got a connection from ".$heap->{remote_ip}, $session);
-           $heap->{client}->put("* OK [CAPABILITY IMAP4rev1 UIDPLUS CHILDREN NAMESPACE THREAD=ORDEREDSUBJECT THREAD=REFERENCES SORT QUOTA IDLE ACL ACL2=UNION STARTTLS] IMAP Relay v0.1 ready.\r\n");
+          my ($kernel, $session, $heap) = @_[KERNEL, SESSION, HEAP];
+          logevent("got a connection from ".$heap->{remote_ip}, $session);
+          $heap->{client}->put("* OK [CAPABILITY IMAP4rev1 UIDPLUS CHILDREN NAMESPACE THREAD=ORDEREDSUBJECT THREAD=REFERENCES SORT QUOTA IDLE ACL ACL2=UNION STARTTLS] IMAP Relay v0.1 ready.\r\n");
         }
 
         sub send_stuff {
-           my ($heap, $stuff, $session) = @_[HEAP, ARG0, SESSION];
-           logevent("-> ".length($stuff)." Bytes", $session);
-           (defined($heap->{client})) && (ref($heap->{client}) eq "POE::Wheel::ReadWrite") &&
-           $heap->{client}->put($stuff);
+          my ($heap, $stuff, $session) = @_[HEAP, ARG0, SESSION];
+          logevent("-> ".length($stuff)." Bytes", $session);
+          (defined($heap->{client})) && (ref($heap->{client}) eq "POE::Wheel::ReadWrite") &&
+          $heap->{client}->put($stuff);
         }
 
         sub child {
-           my ($heap, $child_op, $child) = @_[HEAP, ARG0, ARG1];
-           if ($child_op eq "create") {
-              $heap->{client_id} = $child->ID;
-           }
+          my ($heap, $child_op, $child) = @_[HEAP, ARG0, ARG1];
+          if ($child_op eq "create") {
+            $heap->{client_id} = $child->ID;
+          }
         }
 
         sub handleInput {
-           my ($kernel, $session, $heap, $input) = @_[KERNEL, SESSION, HEAP, ARG0];
-           return if ((ref($heap->{client}->get_output_filter()) eq "POE::Filter::SSL") && (!POE::Filter::SSL::doHandshake($heap->{client})));
-           if($heap->{forwarding}) {
-              return $kernel->yield("shutdown") unless (defined($heap->{client_id}));
-              $kernel->post($heap->{client_id} => send_stuff => $input);
-           } elsif ($input =~ /^(\d+)\s+STARTTLS[\r\n]+/i) {
-              $_[HEAP]{client}->put($1." OK Begin SSL/TLS negotiation now.\r\n");
-              logevent("SSLing now...", $session);
-              $_[HEAP]{client}->set_filter(POE::Filter::SSL->new(crt => 'server.crt', key => 'server.key'));
-           } elsif ($input =~ /^(\d+)\s+CAPABILITY[\r\n]+/i) {
-              $_[HEAP]{client}->put("* CAPABILITY IMAP4rev1 UIDPLUS CHILDREN NAMESPACE THREAD=ORDEREDSUBJECT THREAD=REFERENCES SORT QUOTA IDLE ACL ACL2=UNION STARTTLS\r\n");
-              $_[HEAP]{client}->put($1." OK CAPABILITY completed\r\n");
-           } elsif ($input =~ /^(\d+)\s+login\s+\"(\S+)\"\s+\"(\S+)\"[\r\n]+/i) {
-              my $username = $2;
-              my $pass = $3;
-              logevent("login of user ".$username, $session);
-              spawn_client_side($username, $input);
-              $heap->{forwarding}++;
-           } else {
-              logevent("unknown command before login, disconnecting.", $session);
-              return $kernel->yield("shutdown");
-           }
+          my ($kernel, $session, $heap, $input) = @_[KERNEL, SESSION, HEAP, ARG0];
+          if($heap->{forwarding}) {
+            return $kernel->yield("shutdown") unless (defined($heap->{client_id}));
+            $kernel->post($heap->{client_id} => send_stuff => $input);
+          } elsif ($input =~ /^(\d+)\s+STARTTLS[\r\n]+/i) {
+            $_[HEAP]{client}->put($1." OK Begin SSL/TLS negotiation now.\r\n");
+            logevent("SSLing now...", $session);
+            $_[HEAP]{client}->set_filter(POE::Filter::SSL->new(crt => 'server.crt', key => 'server.key'));
+          } elsif ($input =~ /^(\d+)\s+CAPABILITY[\r\n]+/i) {
+            $_[HEAP]{client}->put("* CAPABILITY IMAP4rev1 UIDPLUS CHILDREN NAMESPACE THREAD=ORDEREDSUBJECT THREAD=REFERENCES SORT QUOTA IDLE ACL ACL2=UNION STARTTLS\r\n");
+            $_[HEAP]{client}->put($1." OK CAPABILITY completed\r\n");
+          } elsif ($input =~ /^(\d+)\s+login\s+\"(\S+)\"\s+\"(\S+)\"[\r\n]+/i) {
+            my $username = $2;
+            my $pass = $3;
+            logevent("login of user ".$username, $session);
+            spawn_client_side($username, $input);
+            $heap->{forwarding}++;
+          } else {
+            logevent("unknown command before login, disconnecting.", $session);
+            return $kernel->yield("shutdown");
+          }
         }
 
         sub spawn_client_side {
@@ -288,8 +278,7 @@ SYNOPSIS
     Advanced Example
       The following example implements a HTTPS server with client
       certificate verification, which shows details about the verified
-      client certificate. It uses *doHandshake()* to add
-      *POE::Filter::HTTPD* to process the cleartext data.
+      client certificate.
 
         #!perl
 
@@ -326,27 +315,28 @@ SYNOPSIS
                 inline_states => {
                   _start       => sub {
                     my ($heap, $kernel, $connected_socket, $address, $port) = @_[HEAP, KERNEL, ARG0, ARG1, ARG2];
+                    $heap->{sslfilter} = POE::Filter::SSL->new(
+                       crt    => 'server.crt',
+                       key    => 'server.key',
+                       cacrt  => 'ca.crt',
+                       cipher => 'AES256-SHA',
+                       #cacrl  => 'ca.crl', # Uncomment this, if you have a CRL file.
+                       debug  => 1,
+                       clientcert => 1
+                    );
                     $heap->{socket_wheel} = POE::Wheel::ReadWrite->new(
                       Handle     => $connected_socket,
                       Driver     => POE::Driver::SysRW->new(),
-                      Filter     => POE::Filter::SSL->new(           ### HERE WE ARE!!!
-                        crt    => 'server.crt',
-                        key    => 'server.key',
-                        cacrt  => 'ca.crt',
-                        cipher => 'AES256-SHA',
-                        #cacrl  => 'ca.crl', # Uncomment this, if you have a CRL file.
-                        debug  => 1,
-                        clientcert => 1
-                      ),
+                      Filter     => POE::Filter::Stackable->new(Filters => [
+                        $heap->{sslfilter},
+                        POE::Filter::HTTPD->new()
+                      ]),
                       InputEvent => 'socket_input',
                       ErrorEvent => '_stop',
                     );
-                    $heap->{sslfilter} = $heap->{socket_wheel}->get_input_filter();
                   },
                   socket_input => sub {
                     my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
-                    # The following line is needed to do the SSL handshake and add the Filter::HTTPD!
-                    return unless POE::Filter::SSL::doHandshake($heap->{socket_wheel}, POE::Filter::HTTPD->new());
                     my ($certid) = ($heap->{sslfilter}->clientCertIds());
                     $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
                     my $content = '';
@@ -378,7 +368,7 @@ SYNOPSIS
         $poe_kernel->run();
 
 FUNCTIONS
-    new(option, option, option...)
+    new(option = value, option => value, option...)>
         Returns a new *POE::Filter::SSL* object. It accepts the following
         options:
 
@@ -431,15 +421,15 @@ FUNCTIONS
           *clientCertNotOnCRL()* if the certificate is listed on your CRL
           file!
 
-    handshakeDone(option)
+    handshakeDone(options)
         Returns *true* if the handshake is done and all data for hanshake
-        has been written out. It accepts the following option:
+        has been written out. It accepts the following options:
 
         ignorebuf
           Returns *true* if OpenSSL has established the connection,
           regardless if all data has been written out. This is needed if you
           want to exchange the Filter of *POE::Wheel::ReadWrite* before the
-          first data comes in. This option is currently only used by
+          first data comes in. This option have been only used by
           *doHandshake()* to be able to add new filters before first
           cleartext data to be processed gets in.
 
@@ -470,7 +460,11 @@ FUNCTIONS
         also tests against the CRL, if you have the *cacrl* option set on
         *new()*.
 
-    doHandshake($readWrite, $filter, $filter, ...)
+    doHandshake($readWrite, $filter, $filter, ...) !!!REMOVED!!!
+        WARNING: POE::Filter:SSL now is able to do the ssh handshake now
+        without any helpers. Because of this, this function has been
+        removed!
+
         Allows to add filters after the ssl handshake. It has to be called
         in the input handler, and needs the passing of the
         *POE::Wheel::ReadWhile* object. If it returns false, you have to

@@ -14,6 +14,8 @@ WriteMakefile(
         'Test::More' => 0,
         'Net::SSLeay'   => '1.32',
         'POE::Filter::Stackable' => 0,
+        'POE::Filter::HTTPD' => 0,
+        'POE::Wheel::ReadWrite' => 0,
         'XSLoader'      => 0
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
