@@ -75,3 +75,9 @@ Revision history for POE-Filter-SSL
 	Found a solution for the use to make ssh handshake without
         the hack in the input handler
 
+0.21	09.11.2010
+	Fixed documentation so Test::Coverage works now
+
+0.22	12.11.2010
+	Fixed prerequires so make test works on more machines
+

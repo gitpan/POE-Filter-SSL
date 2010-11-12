@@ -16,7 +16,8 @@ WriteMakefile(
         'POE::Filter::Stackable' => 0,
         'POE::Filter::HTTPD' => 0,
         'POE::Wheel::ReadWrite' => 0,
-        'XSLoader'      => 0
+        'XSLoader'      => 0,
+        'HTTP::Status'   => 0
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'POE-Filter-SSL-*' },

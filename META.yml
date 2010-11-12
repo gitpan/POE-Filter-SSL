@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                POE-Filter-SSL
-version:             0.21
+version:             0.22
 abstract:            The easiest and flexiblest way to SSL in POE!
 license:             ~
 author:              
@@ -8,6 +8,7 @@ author:
 generated_by:        ExtUtils::MakeMaker version 6.42
 distribution_type:   module
 requires:     
+    HTTP::Status:                  0
     Net::SSLeay:                   1.32
     POE::Filter::HTTPD:            0
     POE::Filter::Stackable:        0
