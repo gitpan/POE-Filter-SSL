@@ -2,7 +2,7 @@ NAME
     POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 VERSION
-    Version 0.22
+    Version 0.23
 
 DESCRIPTION
     This module allows to secure connections of *POE::Wheel::ReadWrite* with
@@ -337,15 +337,18 @@ SYNOPSIS
                   },
                   socket_input => sub {
                     my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
-                    my ($certid) = ($heap->{sslfilter}->clientCertIds());
-                    $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
+                    my (@certid) = ($heap->{sslfilter}->clientCertIds());
                     my $content = '';
                     if ($heap->{sslfilter}->clientCertValid()) {
                       $content .= "Hello <font color=green>valid</font> client Certifcate:";
                     } else {
                       $content .= "None or <font color=red>invalid</font> client certificate:";
                     }
-                    $content .= "<hr>".$certid."<hr>";
+                    $content .= "<hr>";
+                    foreach my $certid (@certid) {
+                      $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
+                      $content .= $certid."<hr>";
+                    }
                     $content .= "Your URL was: ".$buf->uri."<hr>"
                       if (ref($buf) eq "HTTP::Request");
                     $content .= localtime(time());
@@ -454,6 +457,13 @@ FUNCTIONS
 
           my ($certid) = ($heap->{sslfilter}->clientCertIds());
           $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
+
+    getCipher()
+        Returns the used cryptographic algorithm and length.
+
+        Example:
+
+          $sslfilter->getCipher()
 
     clientCertValid()
         Returns *true* if there is a client certificate that is valid. It

@@ -8,7 +8,7 @@ use Carp qw(carp);
 use POE;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.22';
+$VERSION = '0.23';
 sub DOSENDBACK () { 1 }
 
 our $globalinfos;
@@ -426,6 +426,11 @@ sub doSSL {
    return $ret;
 }
 
+sub getCipher {
+   my $self = shift;
+   return Net::SSLeay::get_cipher($self->{ssl});
+}
+
 sub clientCertExists {
    my $self = shift;
    return ((ref($self->{infos}) eq "ARRAY") && ($self->{infos}->[1]));
@@ -506,7 +511,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.22
+Version 0.23
 
 =head1 DESCRIPTION
 
@@ -865,15 +870,18 @@ The following example implements a HTTPS server with client certificate verifica
             },
             socket_input => sub {
               my ($kernel, $heap, $buf) = @_[KERNEL, HEAP, ARG0];
-              my ($certid) = ($heap->{sslfilter}->clientCertIds());
-              $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
+              my (@certid) = ($heap->{sslfilter}->clientCertIds());
               my $content = '';
               if ($heap->{sslfilter}->clientCertValid()) {
                 $content .= "Hello <font color=green>valid</font> client Certifcate:";
               } else {
                 $content .= "None or <font color=red>invalid</font> client certificate:";
               }
-              $content .= "<hr>".$certid."<hr>";
+              $content .= "<hr>";
+              foreach my $certid (@certid) {
+                $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
+                $content .= $certid."<hr>";
+              }
               $content .= "Your URL was: ".$buf->uri."<hr>"
                 if (ref($buf) eq "HTTP::Request");
               $content .= localtime(time());
@@ -983,6 +991,14 @@ Example:
 
   my ($certid) = ($heap->{sslfilter}->clientCertIds());
   $certid = $certid ? $certid->[0]."<br>".$certid->[1]."<br>SERIAL=".$heap->{sslfilter}->hexdump($certid->[2]) : 'No client certificate';
+
+=item getCipher()
+
+Returns the used cryptographic algorithm and length.
+
+Example:
+
+  $sslfilter->getCipher()
 
 =item clientCertValid()
 

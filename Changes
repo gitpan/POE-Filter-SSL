@@ -81,3 +81,7 @@ Revision history for POE-Filter-SSL
 0.22	12.11.2010
 	Fixed prerequires so make test works on more machines
 
+0.23	01.06.2011
+	Fixed documentation bug in HTTPS Server demo
+	Added getCipher() function
+
