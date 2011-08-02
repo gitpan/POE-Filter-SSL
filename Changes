@@ -85,3 +85,7 @@ Revision history for POE-Filter-SSL
 	Fixed documentation bug in HTTPS Server demo
 	Added getCipher() function
 
+0.24	02.08.2011
+	Fixed a bug interacting to some other components
+        without SSL, e.g. POE::Component::Client::HTTP
+

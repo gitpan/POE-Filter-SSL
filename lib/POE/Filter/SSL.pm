@@ -8,7 +8,7 @@ use Carp qw(carp);
 use POE;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.23';
+$VERSION = '0.24';
 sub DOSENDBACK () { 1 }
 
 our $globalinfos;
@@ -67,7 +67,7 @@ BEGIN {
                $$driver->put($$filter_output->put([$_[ARG0]]));
                $poe_kernel->select_resume_write($$handle_output);
             } else {
-               $poe_kernel->yield($$temp_event_input, $_[ARG0], $_[ARG1]);
+               $poe_kernel->call($_[SESSION], $$temp_event_input, $_[ARG0], $_[ARG1]);
             }
          }
       );
@@ -511,7 +511,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.23
+Version 0.24
 
 =head1 DESCRIPTION
 
