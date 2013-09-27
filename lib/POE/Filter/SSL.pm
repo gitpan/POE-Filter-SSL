@@ -8,7 +8,7 @@ use Carp qw(carp);
 use POE;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.25';
+$VERSION = '0.26';
 sub DOSENDBACK () { 1 }
 
 our $globalinfos;
@@ -244,7 +244,8 @@ sub new {
    Net::SSLeay::set_bio($self->{ssl}, $self->{rbio}, $self->{wbio});
 
    if ($params->{dhcert}) {
-      die "Cannot open dhcert file!" unless if (my $dhbio = Net::SSLeay::BIO_new_file($params->{dhcert}, "r"));
+      my $dhbio = Net::SSLeay::BIO_new_file($params->{dhcert}, "r");
+      die "Cannot open dhcert file!" unless $dhbio;
       my $dhret = Net::SSLeay::PEM_read_bio_DHparams($dhbio);
       Net::SSLeay::BIO_free($dhbio);
       die "Couldn't set DH parameters!" if (Net::SSLeay::set_tmp_dh($self->{ssl}, $dhret) < 0);
@@ -524,7 +525,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.25
+Version 0.26
 
 =head1 DESCRIPTION
 
@@ -865,7 +866,7 @@ The following example implements a HTTPS server with client certificate verifica
                  crt    => 'server.crt',
                  key    => 'server.key',
                  cacrt  => 'ca.crt',
-                 cipher => 'AES256-SHA',
+                 cipher => 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA',
                  #cacrl  => 'ca.crl', # Uncomment this, if you have a CRL file.
                  debug  => 1,
                  clientcert => 1
@@ -972,7 +973,7 @@ Specify which ciphers are allowed for the synchronous encrypted transfer of the 
 
 Example:
 
-  cipher => 'AES256-SHA'
+  cipher => 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA'
 
 =item blockbadclientcert
 

@@ -2,7 +2,7 @@ NAME
     POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 VERSION
-    Version 0.25
+    Version 0.26
 
 DESCRIPTION
     This module allows to secure connections of *POE::Wheel::ReadWrite* with
@@ -319,7 +319,7 @@ SYNOPSIS
                        crt    => 'server.crt',
                        key    => 'server.key',
                        cacrt  => 'ca.crt',
-                       cipher => 'AES256-SHA',
+                       cipher => 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA',
                        #cacrl  => 'ca.crl', # Uncomment this, if you have a CRL file.
                        debug  => 1,
                        clientcert => 1
@@ -423,7 +423,7 @@ FUNCTIONS
 
           Example:
 
-            cipher => 'AES256-SHA'
+            cipher => 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA'
 
         blockbadclientcert
           Let OpenSSL deny the connection if there is no or an invalid

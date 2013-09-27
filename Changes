@@ -93,3 +93,6 @@ Revision history for POE-Filter-SSL
 	Intermediate certificates as chain (chain parameter)
 	Diffie-Hellman for perfect forward secrecy (dhcert parameter)
 
+0.26	28.09.2013
+	Syntax error
+
