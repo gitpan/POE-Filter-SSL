@@ -8,7 +8,7 @@ use Carp qw(carp);
 use POE;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.24';
+$VERSION = '0.25';
 sub DOSENDBACK () { 1 }
 
 our $globalinfos;
@@ -223,6 +223,9 @@ sub new {
 
    Net::SSLeay::CTX_use_RSAPrivateKey_file($self->{context}, $params->{key}, &Net::SSLeay::FILETYPE_PEM);
    Net::SSLeay::CTX_use_certificate_file($self->{context}, $params->{crt}, &Net::SSLeay::FILETYPE_PEM);
+   if ($params->{chain}) {
+      Net::SSLeay::CTX_use_certificate_chain_file($self->{context}, $params->{chain});
+   }
    if ($params->{cacrt}) {
       Net::SSLeay::CTX_load_verify_locations($self->{context}, $params->{cacrt}, '');
       Net::SSLeay::CTX_set_client_CA_list($self->{context}, Net::SSLeay::load_client_CA_file($params->{cacrt}));
@@ -239,6 +242,16 @@ sub new {
       or die("Create wBIO_s_mem(): ".$!);
    $self->{ssl} = Net::SSLeay::new($self->{context});
    Net::SSLeay::set_bio($self->{ssl}, $self->{rbio}, $self->{wbio});
+
+   if ($params->{dhcert}) {
+      die "Cannot open dhcert file!" unless if (my $dhbio = Net::SSLeay::BIO_new_file($params->{dhcert}, "r"));
+      my $dhret = Net::SSLeay::PEM_read_bio_DHparams($dhbio);
+      Net::SSLeay::BIO_free($dhbio);
+      die "Couldn't set DH parameters!" if (Net::SSLeay::set_tmp_dh($self->{ssl}, $dhret) < 0);
+      my $rsa = Net::SSLeay::RSA_generate_key(1024, 73);
+      die "Couldn't set RSA key!" if (!Net::SSLeay::CTX_set_tmp_rsa($self->{context}, $rsa));
+      Net::SSLeay::RSA_free($rsa);
+   }
 
    if ($params->{clientcert}) {
       my $orfilter = &Net::SSLeay::VERIFY_PEER
@@ -511,7 +524,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.24
+Version 0.25
 
 =head1 DESCRIPTION
 
@@ -927,6 +940,14 @@ By default I<POE::Filter::SSL> acts as a SSL server. To use it in client mode, y
 
 The certificate file (.crt) for the server, only needed in server mode.
 
+=item chain
+
+Chain certificates, for example startssl.org needs a intermedia certificates. He you can configure it.
+
+=item dhcert
+
+If you want to enable perfect forward secrecy, here you can enable Diffie-Hellman. You just have to create a dhpara file via I<openssl dhparam -check -text -5 1024 -out path/to/FILENAME.pem>, and there here the path to the path/to/FILENAME.pem where your Diffie-Hellman (pem format) stays.
+
 =item key
 
 The key file (.key) of the certificate for the server, only needed in server mode.
@@ -1066,7 +1087,7 @@ Example:
 
 =head1 AUTHOR
 
-Markus Mueller, C<< <privi at cpan.org> >>
+Markus Schraeder, C<< <privi at cpan.org> >>
 
 =head1 BUGS
 
@@ -1108,7 +1129,7 @@ Commercial support can be gained at <sslsupport at priv.de>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2010 Markus Mueller, all rights reserved.
+Copyright 2010-2013 Markus Schraeder, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

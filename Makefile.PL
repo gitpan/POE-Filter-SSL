@@ -4,7 +4,7 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
     NAME                => 'POE::Filter::SSL',
-    AUTHOR              => 'Markus Mueller <privi@cpan.org>',
+    AUTHOR              => 'Markus Schraeder <privi@cpan.org>',
     VERSION_FROM        => 'lib/POE/Filter/SSL.pm',
     ABSTRACT_FROM       => 'lib/POE/Filter/SSL.pm',
     PL_FILES            => {},

@@ -89,3 +89,7 @@ Revision history for POE-Filter-SSL
 	Fixed a bug interacting to some other components
         without SSL, e.g. POE::Component::Client::HTTP
 
+0.25	27.09.2013
+	Intermediate certificates as chain (chain parameter)
+	Diffie-Hellman for perfect forward secrecy (dhcert parameter)
+

@@ -3,7 +3,7 @@ name:               POE-Filter-SSL
 version:            0.24
 abstract:           The easiest and flexiblest way to SSL in POE!
 author:
-    - Markus Mueller <privi@cpan.org>
+    - Markus Schraeder <privi@cpan.org>
 license:            unknown
 distribution_type:  module
 configure_requires:
