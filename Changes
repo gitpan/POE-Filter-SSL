@@ -96,3 +96,6 @@ Revision history for POE-Filter-SSL
 0.26	28.09.2013
 	Syntax error
 
+0.27	28.09.2013
+	-lssl is not enouth; -lcrypto -ldl added
+

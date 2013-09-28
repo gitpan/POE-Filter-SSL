@@ -8,7 +8,7 @@ WriteMakefile(
     VERSION_FROM        => 'lib/POE/Filter/SSL.pm',
     ABSTRACT_FROM       => 'lib/POE/Filter/SSL.pm',
     PL_FILES            => {},
-    LIBS		=> '-lssl',
+    LIBS		=> '-lssl -lcrypto -ldl',
     #TYPEMAPS		=> ['./typemap'],
     PREREQ_PM => {
         'Test::More' => 0,
