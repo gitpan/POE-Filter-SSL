@@ -8,7 +8,7 @@ use Carp qw(carp);
 use POE;
 
 use vars qw($VERSION @ISA);
-$VERSION = '0.27';
+$VERSION = '0.28';
 sub DOSENDBACK () { 1 }
 
 our $globalinfos;
@@ -249,7 +249,7 @@ sub new {
       my $dhret = Net::SSLeay::PEM_read_bio_DHparams($dhbio);
       Net::SSLeay::BIO_free($dhbio);
       die "Couldn't set DH parameters!" if (Net::SSLeay::set_tmp_dh($self->{ssl}, $dhret) < 0);
-      my $rsa = Net::SSLeay::RSA_generate_key(1024, 73);
+      my $rsa = Net::SSLeay::RSA_generate_key(2048, 73);
       die "Couldn't set RSA key!" if (!Net::SSLeay::CTX_set_tmp_rsa($self->{context}, $rsa));
       Net::SSLeay::RSA_free($rsa);
    }
@@ -456,7 +456,7 @@ sub clientCertValid {
    if (defined($self->{cacrl})) {
       $valid = $self->clientCertNotOnCRL($self->{cacrl}) ? 1 : 0;
    }
-   return $self->clientCertExists() ? (@{$self->{infos}->[2]} && $valid) : undef;
+   return $self->clientCertExists() ? (($self->{infos}->[0] ne "2") && scalar(@{$self->{infos}->[2]}) && $valid) : undef;
 }
 
 sub clientCertIds {
@@ -525,7 +525,7 @@ POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 =head1 VERSION
 
-Version 0.27
+Version 0.28
 
 =head1 DESCRIPTION
 
@@ -664,8 +664,6 @@ By default I<POE::Filter::SSL> acts as a SSL server. To use it in client mode yo
   # next line isn't really needed
   POE::Kernel->call($aliases->{tcp}, "shutdown");
 
-=item 
-
 =back
 
 =head2 SSL on an established connection
@@ -674,7 +672,7 @@ By default I<POE::Filter::SSL> acts as a SSL server. To use it in client mode yo
 
 =item Advanced Example
 
-This example is a IMAP-Relay which forwards the connections to a IMAP server
+This example is an IMAP-Relay which forwards the connections to a IMAP server
 by username. It allows the uncrypted transfer on port 143, with the option
 of SSL on the established connection (STARTTLS). On port 993 it allows to do direct SSL.
 
@@ -929,43 +927,45 @@ Returns a new I<POE::Filter::SSL> object. It accepts the following options:
 
 =over 2
 
-=item debug
-
-Shows debug messages of I<clientCertNotOnCRL()>.
-
 =item client
 
 By default I<POE::Filter::SSL> acts as a SSL server. To use it in client mode, you have to set this option.
 
 =item crt
 
-The certificate file (.crt) for the server, only needed in server mode.
-
-=item chain
-
-Chain certificates, for example startssl.org needs a intermedia certificates. He you can configure it.
-
-=item dhcert
-
-If you want to enable perfect forward secrecy, here you can enable Diffie-Hellman. You just have to create a dhpara file via I<openssl dhparam -check -text -5 1024 -out path/to/FILENAME.pem>, and there here the path to the path/to/FILENAME.pem where your Diffie-Hellman (pem format) stays.
+The certificate file (.crt) for the server, a client certificate in client mode.
 
 =item key
 
-The key file (.key) of the certificate for the server, only needed in server mode.
-
-=item clientcert
-
-The server requests the client for a client certificat during ssl handshake, only useful in server mode.
-
-B<WARNING:> If the client provides an untrusted or no client certficate, the connection is B<not> failing. You have to ask I<clientCertValid()> if the certicate is valid!
+The key file (.key) of the certificate (see I<crt> above).
 
 =item cacrt
 
 The ca certificate file (ca.crt), which is used to verificate the client certificates against a CA.
 
+=item chain
+
+Chain certificate, you need it for example for startssl.org wich needs a intermedia certificates. Here you can configure it. You can generate this the following way:
+
+cat client.crt intermediate.crt ca.crt > chain.pem
+
+In this case, you normaly have no I<key> and I<crt> option.
+
 =item cacrl
 
 Configures a CRL (ca.crl) against the client certificate is verified by I<clientCertValid()>.
+
+=item dhcert
+
+If you want to enable perfect forward secrecy, here you can enable Diffie-Hellman. You just have to create a dhparam file and there here the path to the path/to/FILENAME.pem where your Diffie-Hellman (pem format) stays.
+
+openssl dhparam -check -text -5 2048 -out path/to/FILENAME.pem
+
+=item clientcert
+
+Only in server mode: Request during ssl handshake from the client a client certificat.
+
+B<WARNING:> If the client provides an untrusted or no client certficate, the connection is B<not> failing. You have to ask I<clientCertValid()> if the certicate is valid!
 
 =item cipher
 
@@ -977,9 +977,9 @@ Example:
 
 =item blockbadclientcert
 
-Let OpenSSL deny the connection if there is no or an invalid client certificate.
+Let OpenSSL deny the connection if there is no client certificate.
 
-B<WARNING:> If the client is listed in the CRL file, the connection will be established! You have to ask I<clientCertValid()> if you have the I<crl> option set on I<new()>, otherwise to ask I<clientCertNotOnCRL()> if the certificate is listed on your CRL file!
+B<WARNING:> If the client is listed in the CRL file or an invalid client certifiate has been sent, the connection will be established! You have to ask I<clientCertValid()> if you have the I<crl> option set on I<new()>, otherwise to ask I<clientCertNotOnCRL()> if the certificate is listed on your CRL file!
 
 =back
 
@@ -1040,6 +1040,10 @@ See the I<HTTPS-Server>, I<SSL on an established connection> and I<Client certif
 Returns I<true> if there is a client certificate, that might be untrusted.
 
 B<WARNING:> If the client provides an untrusted client certficate a client certicate that is listed in CRL, this function returns I<true>. You have to ask I<clientCertValid()> if the certicate is valid!
+
+=item debug
+
+Shows debug messages of I<clientCertNotOnCRL()>.
 
 =item hexdump($string)
 
@@ -1130,7 +1134,7 @@ Commercial support can be gained at <sslsupport at priv.de>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2010-2013 Markus Schraeder, all rights reserved.
+Copyright 2010-2014 Markus Schraeder, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

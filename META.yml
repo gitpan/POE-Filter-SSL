@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               POE-Filter-SSL
-version:            0.27
+version:            0.28
 abstract:           The easiest and flexiblest way to SSL in POE!
 author:
     - Markus Schraeder <privi@cpan.org>

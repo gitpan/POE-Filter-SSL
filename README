@@ -2,7 +2,7 @@ NAME
     POE::Filter::SSL - The easiest and flexiblest way to SSL in POE!
 
 VERSION
-    Version 0.27
+    Version 0.28
 
 DESCRIPTION
     This module allows to secure connections of *POE::Wheel::ReadWrite* with
@@ -126,11 +126,9 @@ SYNOPSIS
         # next line isn't really needed
         POE::Kernel->call($aliases->{tcp}, "shutdown");
 
-
-
   SSL on an established connection
     Advanced Example
-      This example is a IMAP-Relay which forwards the connections to a IMAP
+      This example is an IMAP-Relay which forwards the connections to a IMAP
       server by username. It allows the uncrypted transfer on port 143, with
       the option of SSL on the established connection (STARTTLS). On port
       993 it allows to do direct SSL.
@@ -375,47 +373,49 @@ FUNCTIONS
         Returns a new *POE::Filter::SSL* object. It accepts the following
         options:
 
-        debug
-          Shows debug messages of *clientCertNotOnCRL()*.
-
         client
           By default *POE::Filter::SSL* acts as a SSL server. To use it in
           client mode, you have to set this option.
 
         crt
-          The certificate file (.crt) for the server, only needed in server
-          mode.
-
-        chain
-          Chain certificates, for example startssl.org needs a intermedia
-          certificates. He you can configure it.
-
-        dhcert
-          If you want to enable perfect forward secrecy, here you can enable
-          Diffie-Hellman. You just have to create a dhpara file via *openssl
-          dhparam -check -text -5 1024 -out path/to/FILENAME.pem*, and there
-          here the path to the path/to/FILENAME.pem where your
-          Diffie-Hellman (pem format) stays.
+          The certificate file (.crt) for the server, a client certificate
+          in client mode.
 
         key
-          The key file (.key) of the certificate for the server, only needed
-          in server mode.
-
-        clientcert
-          The server requests the client for a client certificat during ssl
-          handshake, only useful in server mode.
-
-          WARNING: If the client provides an untrusted or no client
-          certficate, the connection is not failing. You have to ask
-          *clientCertValid()* if the certicate is valid!
+          The key file (.key) of the certificate (see *crt* above).
 
         cacrt
           The ca certificate file (ca.crt), which is used to verificate the
           client certificates against a CA.
 
+        chain
+          Chain certificate, you need it for example for startssl.org wich
+          needs a intermedia certificates. Here you can configure it. You
+          can generate this the following way:
+
+          cat client.crt intermediate.crt ca.crt > chain.pem
+
+          In this case, you normaly have no *key* and *crt* option.
+
         cacrl
           Configures a CRL (ca.crl) against the client certificate is
           verified by *clientCertValid()*.
+
+        dhcert
+          If you want to enable perfect forward secrecy, here you can enable
+          Diffie-Hellman. You just have to create a dhparam file and there
+          here the path to the path/to/FILENAME.pem where your
+          Diffie-Hellman (pem format) stays.
+
+          openssl dhparam -check -text -5 2048 -out path/to/FILENAME.pem
+
+        clientcert
+          Only in server mode: Request during ssl handshake from the client
+          a client certificat.
+
+          WARNING: If the client provides an untrusted or no client
+          certficate, the connection is not failing. You have to ask
+          *clientCertValid()* if the certicate is valid!
 
         cipher
           Specify which ciphers are allowed for the synchronous encrypted
@@ -426,12 +426,12 @@ FUNCTIONS
             cipher => 'DHE-RSA-AES256-GCM-SHA384:AES256-SHA'
 
         blockbadclientcert
-          Let OpenSSL deny the connection if there is no or an invalid
-          client certificate.
+          Let OpenSSL deny the connection if there is no client certificate.
 
-          WARNING: If the client is listed in the CRL file, the connection
-          will be established! You have to ask *clientCertValid()* if you
-          have the *crl* option set on *new()*, otherwise to ask
+          WARNING: If the client is listed in the CRL file or an invalid
+          client certifiate has been sent, the connection will be
+          established! You have to ask *clientCertValid()* if you have the
+          *crl* option set on *new()*, otherwise to ask
           *clientCertNotOnCRL()* if the certificate is listed on your CRL
           file!
 
@@ -503,6 +503,9 @@ FUNCTIONS
         *true*. You have to ask *clientCertValid()* if the certicate is
         valid!
 
+    debug
+        Shows debug messages of *clientCertNotOnCRL()*.
+
     hexdump($string)
         Returns string data in hex format.
 
@@ -564,7 +567,7 @@ Commercial support
     Commercial support can be gained at <sslsupport at priv.de>
 
 COPYRIGHT & LICENSE
-    Copyright 2010-2013 Markus Schraeder, all rights reserved.
+    Copyright 2010-2014 Markus Schraeder, all rights reserved.
 
     This program is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.

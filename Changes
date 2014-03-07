@@ -99,3 +99,6 @@ Revision history for POE-Filter-SSL
 0.27	28.09.2013
 	-lssl is not enouth; -lcrypto -ldl added
 
+0.28	07.03.2014
+	Fixed major security error verifying client certifcates in clientCertValid()
+
